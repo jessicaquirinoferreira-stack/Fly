@@ -14,13 +14,44 @@ import { cn, handleFirestoreError, OperationType } from '../../lib/utils';
 
 export default function AdminPanel() {
   const [user, setUser] = useState<any>(null);
+  const [isAdminUser, setIsAdminUser] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'settings'>('dashboard');
-  const [isLogin, setIsLogin] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
+    const unsubscribe = onAuthStateChanged(auth, async (u) => {
       setUser(u);
+      if (u) {
+        // First, check/create admin record if authorized by email
+        const adminDocRef = doc(db, 'admins', u.uid);
+        try {
+          const adminSnap = await getDoc(adminDocRef);
+          if (!adminSnap.exists() && (
+            u.email?.toLowerCase() === 'jessicaquirinoferreira@gmail.com' || 
+            u.email?.toLowerCase() === 'fly@store.com'
+          )) {
+            await setDoc(adminDocRef, {
+              email: u.email,
+              role: 'admin',
+              createdAt: serverTimestamp()
+            });
+          }
+          
+          // Now check if we can actually list products
+          const q = query(collection(db, 'products'), orderBy('createdAt', 'desc'));
+          await getDocs(q);
+          setIsAdminUser(true);
+        } catch (err: any) {
+          console.error("Admin check failed", err);
+          // If it's a permission error, we try to show more info
+          setIsAdminUser(false);
+          if (err.message?.includes('permission')) {
+            console.warn("UID:", u.uid, "Email:", u.email);
+          }
+        }
+      } else {
+        setIsAdminUser(null);
+      }
       setLoading(false);
     });
     return () => unsubscribe();
@@ -30,6 +61,26 @@ export default function AdminPanel() {
 
   if (!user) {
     return <AdminLogin />;
+  }
+
+  if (isAdminUser === false) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+        <div className="max-w-md w-full space-y-4 p-8 bg-white rounded-2xl shadow-xl text-center">
+          <div className="text-red-500 mb-4">
+            <X size={48} className="mx-auto" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900">Acesso Negado</h2>
+          <p className="text-gray-600">Este e-mail ({user.email}) não tem permissão de administrador.</p>
+          <button 
+            onClick={() => signOut(auth)}
+            className="mt-6 w-full py-3 bg-brand-black text-white rounded-lg hover:bg-black transition"
+          >
+            Sair e tentar outro e-mail
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -101,13 +152,28 @@ function AdminLogin() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const isIframe = window !== window.parent;
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+    setLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
     } catch (err: any) {
-      setError('Credenciais inválidas');
+      console.error('Login error:', err);
+      if (err.code === 'auth/operation-not-allowed') {
+        setError('O login por E-mail/Senha não está habilitado no Console do Firebase. Vá em Authentication > Sign-in method e ative "E-mail/Senha".');
+      } else if (err.code === 'auth/network-request-failed') {
+        setError('Falha na rede. Verifique se o domínio do site está na lista de "Domínios Autorizados" no Console do Firebase (Authentication > Settings) ou se algum AdBlock está bloqueando o acesso.');
+      } else if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+        setError('E-mail ou senha incorretos.');
+      } else {
+        setError('Erro ao fazer login: ' + err.message);
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -119,7 +185,26 @@ function AdminLogin() {
           <p className="mt-2 text-sm text-gray-600">Acesse o painel de gerenciamento</p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleLogin}>
-          {error && <div className="p-3 bg-red-50 text-red-600 rounded-lg text-sm">{error}</div>}
+          {isIframe && (
+            <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg text-sm text-orange-800">
+              <p className="font-bold flex items-center gap-2 mb-1">
+                <SettingsIcon size={16} className="animate-spin" /> 
+                Atenção: Ambiente de Preview
+              </p>
+              <p>O navegador bloqueia o Login de Teste dentro deste preview. Para conseguir entrar, clique no ícone <strong>"Abrir em Nova Guia"</strong> (↗) que fica no canto superior direito desta tela.</p>
+            </div>
+          )}
+
+          {error && (
+            <div className="p-3 bg-red-50 text-red-600 rounded-lg text-sm">
+              <p className="font-medium">{error}</p>
+              {error.includes('rede') && (
+                <p className="text-[10px] mt-2 font-bold uppercase tracking-tight text-red-700">
+                  ⚠️ Dica: Se o erro persistir, tente abrir o site em uma "Nova Guia" (ícone no topo direito do preview) para evitar bloqueios do navegador.
+                </p>
+              )}
+            </div>
+          )}
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700">Email</label>
@@ -144,9 +229,10 @@ function AdminLogin() {
           </div>
           <button
             type="submit"
-            className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-brand-black hover:bg-black focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-gold border-brand-gold/30"
+            disabled={loading}
+            className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-brand-black hover:bg-black focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-gold border-brand-gold/30 disabled:opacity-50"
           >
-            Entrar
+            {loading ? 'Entrando...' : 'Entrar'}
           </button>
         </form>
       </div>

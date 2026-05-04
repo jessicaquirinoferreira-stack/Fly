@@ -14,7 +14,8 @@ service cloud.firestore {
     function isAdmin() {
       return isSignedIn() && (
         exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
-        (request.auth.token.email == 'fly@store.com' && request.auth.token.email_verified == true)
+        (request.auth.token.email.lower() == 'jessicaquirinoferreira@gmail.com'.lower()) ||
+        (request.auth.token.email.lower() == 'fly@store.com'.lower())
       );
     }
 
@@ -32,7 +33,8 @@ service cloud.firestore {
 
     // Products
     match /products/{productId} {
-      allow read: if isValidId(productId) && (isAdmin() || existing().active == true);
+      allow get: if isValidId(productId) && (isAdmin() || existing().active == true);
+      allow list: if isAdmin() || resource.data.active == true;
       allow create: if isAdmin() && isValidProduct(incoming());
       allow update: if isAdmin() && isValidProduct(incoming());
       allow delete: if isAdmin();
@@ -43,7 +45,12 @@ service cloud.firestore {
              data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
              data.price is number && data.price >= 0 &&
              data.imageUrl is string && data.imageUrl.size() > 0 &&
-             data.createdAt is timestamp;
+             data.createdAt is timestamp &&
+             (data.get('brand', '') is string) &&
+             (data.get('category', '') is string) &&
+             (data.get('active', true) is bool) &&
+             (data.get('featured', false) is bool) &&
+             (data.get('sizes', []) is list);
     }
 
     // Settings
@@ -53,7 +60,11 @@ service cloud.firestore {
     }
 
     function isValidSettings(data) {
-      return data.whatsappNumber is string && data.whatsappNumber.size() <= 20;
+      return data.whatsappNumber is string && data.whatsappNumber.size() <= 20 &&
+             data.storeName is string &&
+             (data.get('email', '') is string) &&
+             (data.get('instagramUrl', '') is string) &&
+             (data.get('facebookUrl', '') is string);
     }
 
     // Orders
@@ -73,8 +84,13 @@ service cloud.firestore {
 
     // Admins collection - used for RBAC
     match /admins/{adminId} {
-      allow read: if isSignedIn() && request.auth.uid == adminId;
-      allow write: if false; // Only manageable via console or specialized tool
+      allow read: if isSignedIn() && (request.auth.uid == adminId || isAdmin());
+      allow write: if isSignedIn() && (
+        request.auth.uid == adminId && (
+          (request.auth.token.email.lower() == 'jessicaquirinoferreira@gmail.com'.lower()) ||
+          (request.auth.token.email.lower() == 'fly@store.com'.lower())
+        )
+      );
     }
   }
 }
