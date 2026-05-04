@@ -1,0 +1,6 @@
+{
+  "name": "Flay Store",
+  "description": "Loja virtual Flay Store com painel administrativo e checkout WhatsApp.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

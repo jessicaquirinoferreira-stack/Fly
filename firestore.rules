@@ -1,0 +1,80 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        (request.auth.token.email == 'fly@store.com' && request.auth.token.email_verified == true)
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Products
+    match /products/{productId} {
+      allow read: if isValidId(productId) && (isAdmin() || existing().active == true);
+      allow create: if isAdmin() && isValidProduct(incoming());
+      allow update: if isAdmin() && isValidProduct(incoming());
+      allow delete: if isAdmin();
+    }
+
+    function isValidProduct(data) {
+      return data.keys().hasAll(['name', 'price', 'imageUrl', 'createdAt']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
+             data.price is number && data.price >= 0 &&
+             data.imageUrl is string && data.imageUrl.size() > 0 &&
+             data.createdAt is timestamp;
+    }
+
+    // Settings
+    match /settings/global {
+      allow read: if true; // Publicly readable for store info
+      allow write: if isAdmin() && isValidSettings(incoming());
+    }
+
+    function isValidSettings(data) {
+      return data.whatsappNumber is string && data.whatsappNumber.size() <= 20;
+    }
+
+    // Orders
+    match /orders/{orderId} {
+      allow read: if isAdmin();
+      allow create: if isValidOrder(incoming());
+      allow update, delete: if isAdmin();
+    }
+
+    function isValidOrder(data) {
+      return data.keys().hasAll(['customerName', 'customerPhone', 'address', 'items', 'total', 'createdAt']) &&
+             data.customerName is string && data.customerName.size() > 0 &&
+             data.customerPhone is string && data.customerPhone.size() > 0 &&
+             data.total is number && data.total >= 0 &&
+             data.createdAt == request.time; // Strict timestamp
+    }
+
+    // Admins collection - used for RBAC
+    match /admins/{adminId} {
+      allow read: if isSignedIn() && request.auth.uid == adminId;
+      allow write: if false; // Only manageable via console or specialized tool
+    }
+  }
+}

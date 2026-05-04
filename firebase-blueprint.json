@@ -1,0 +1,76 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "A product available for sale in the store.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Product name" },
+        "description": { "type": "string", "description": "Detailed description of the product" },
+        "price": { "type": "number", "description": "Product price in BRL" },
+        "salePrice": { "type": "number", "description": "Discounted price if applicable" },
+        "imageUrl": { "type": "string", "description": "URL of the product image" },
+        "category": { "type": "string", "description": "Product category (e.g., Masculino, Feminino, Infantil)" },
+        "brand": { "type": "string", "description": "Product brand" },
+        "sizes": { "type": "array", "description": "Available sizes for the product" },
+        "featured": { "type": "boolean", "description": "Whether the product is featured on the home page" },
+        "active": { "type": "boolean", "description": "Whether the product is visible to customers" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "price", "imageUrl", "createdAt"]
+    },
+    "Settings": {
+      "title": "Settings",
+      "description": "Global application settings.",
+      "type": "object",
+      "properties": {
+        "whatsappNumber": { "type": "string", "description": "WhatsApp number for orders (e.g., 5511999999999)" },
+        "instagramUrl": { "type": "string", "description": "Instagram profile URL" },
+        "facebookUrl": { "type": "string", "description": "Facebook page URL" },
+        "storeName": { "type": "string", "description": "Name of the store" },
+        "freeShippingThreshold": { "type": "number", "description": "Order value threshold for free shipping" }
+      }
+    },
+    "Order": {
+      "title": "Order",
+      "description": "A customer order submitted via WhatsApp.",
+      "type": "object",
+      "properties": {
+        "customerName": { "type": "string" },
+        "customerPhone": { "type": "string" },
+        "address": {
+          "type": "object",
+          "properties": {
+            "cep": { "type": "string" },
+            "street": { "type": "string" },
+            "number": { "type": "string" },
+            "complement": { "type": "string" },
+            "neighborhood": { "type": "string" },
+            "city": { "type": "string" },
+            "state": { "type": "string" }
+          }
+        },
+        "items": { "type": "array" },
+        "subtotal": { "type": "number" },
+        "shippingCost": { "type": "number" },
+        "total": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["customerName", "customerPhone", "address", "items", "total", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Store products"
+    },
+    "/settings/global": {
+      "schema": "Settings",
+      "description": "Global store settings"
+    },
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Customer orders history"
+    }
+  }
+}
