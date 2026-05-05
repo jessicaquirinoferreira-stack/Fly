@@ -1,22 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Plus, Search, Edit2, Trash2, Settings as SettingsIcon, 
-  Package, LayoutDashboard, LogOut, ChevronRight, Save, X, Image as ImageIcon
+  Package, LayoutDashboard, LogOut, ChevronRight, Save, X, Image as ImageIcon,
+  ShoppingCart, CheckCircle, Clock, Truck, AlertCircle, ExternalLink, Globe
 } from 'lucide-react';
 import { 
   collection, addDoc, getDocs, updateDoc, deleteDoc, doc, 
-  query, orderBy, serverTimestamp, getDoc, setDoc
+  query, orderBy, serverTimestamp, getDoc, setDoc, onSnapshot
 } from 'firebase/firestore';
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { db, auth } from '../../lib/firebase';
-import { Product, Settings } from '../../types';
+import { Product, Settings, Order } from '../../types';
 import { cn, handleFirestoreError, OperationType } from '../../lib/utils';
+
+const isIframe = typeof window !== 'undefined' && window !== window.parent;
 
 export default function AdminPanel() {
   const [user, setUser] = useState<any>(null);
   const [isAdminUser, setIsAdminUser] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'settings'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'settings' | 'orders' | 'inventory'>('dashboard');
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
@@ -43,11 +46,7 @@ export default function AdminPanel() {
           setIsAdminUser(true);
         } catch (err: any) {
           console.error("Admin check failed", err);
-          // If it's a permission error, we try to show more info
           setIsAdminUser(false);
-          if (err.message?.includes('permission')) {
-            console.warn("UID:", u.uid, "Email:", u.email);
-          }
         }
       } else {
         setIsAdminUser(null);
@@ -58,10 +57,8 @@ export default function AdminPanel() {
   }, []);
 
   if (loading) return <div className="h-screen flex items-center justify-center">Carregando...</div>;
-
-  if (!user) {
-    return <AdminLogin />;
-  }
+  if (!user) return <AdminLogin />;
+  if (isAdminUser === null) return <div className="h-screen flex items-center justify-center text-brand-gold font-bold animate-pulse uppercase tracking-[0.2em] italic">Segurança: Verificando Nível de Acesso...</div>;
 
   if (isAdminUser === false) {
     return (
@@ -104,6 +101,18 @@ export default function AdminPanel() {
             onClick={() => setActiveTab('products')} 
           />
           <SidebarItem 
+            icon={<ShoppingCart size={20} />} 
+            label="Pedidos" 
+            active={activeTab === 'orders'} 
+            onClick={() => setActiveTab('orders')} 
+          />
+          <SidebarItem 
+            icon={<Globe size={20} />} 
+            label="Inventário" 
+            active={activeTab === 'inventory'} 
+            onClick={() => setActiveTab('inventory')} 
+          />
+          <SidebarItem 
             icon={<SettingsIcon size={20} />} 
             label="Configurações" 
             active={activeTab === 'settings'} 
@@ -122,9 +131,20 @@ export default function AdminPanel() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto p-8">
+      <main className="flex-1 overflow-y-auto p-8 relative">
+        {isIframe && (
+          <button 
+            onClick={() => window.open(window.location.href, '_blank')}
+            className="absolute top-4 right-4 z-50 flex items-center gap-2 px-3 py-1.5 bg-brand-gold text-brand-black text-[10px] font-black rounded-lg shadow-xl hover:scale-105 transition-transform"
+          >
+            <ExternalLink size={12} />
+            ABRIR EM NOVA GUIA (PAINEL LOGADO)
+          </button>
+        )}
         {activeTab === 'dashboard' && <DashboardOverview />}
         {activeTab === 'products' && <ProductManager />}
+        {activeTab === 'orders' && <OrderManager />}
+        {activeTab === 'inventory' && <InventoryManager />}
         {activeTab === 'settings' && <SettingsManager />}
       </main>
     </div>
@@ -153,7 +173,6 @@ function AdminLogin() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const isIframe = window !== window.parent;
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -186,12 +205,23 @@ function AdminLogin() {
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleLogin}>
           {isIframe && (
-            <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg text-sm text-orange-800">
-              <p className="font-bold flex items-center gap-2 mb-1">
-                <SettingsIcon size={16} className="animate-spin" /> 
-                Atenção: Ambiente de Preview
-              </p>
-              <p>O navegador bloqueia o Login de Teste dentro deste preview. Para conseguir entrar, clique no ícone <strong>"Abrir em Nova Guia"</strong> (↗) que fica no canto superior direito desta tela.</p>
+            <div className="p-5 bg-orange-50 border border-orange-200 rounded-2xl text-center space-y-4">
+              <div className="flex justify-center">
+                <div className="p-3 bg-orange-100 rounded-full animate-bounce">
+                  <ExternalLink size={24} className="text-orange-600" />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <p className="font-black text-orange-900 text-sm uppercase tracking-tighter">Login Bloqueado no Preview</p>
+                <p className="text-xs text-orange-700 leading-relaxed">Para segurança, o login não funciona dentro deste quadro. Clique abaixo para abrir o site em uma nova aba e acessar o painel.</p>
+              </div>
+              <button 
+                onClick={() => window.open(window.location.href, '_blank')}
+                className="w-full py-3 bg-orange-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-orange-700 transition-all shadow-lg shadow-orange-200"
+              >
+                <ExternalLink size={18} />
+                ABRIR SITE EM NOVA GUIA
+              </button>
             </div>
           )}
 
@@ -245,17 +275,35 @@ function ProductManager() {
   const [isEditing, setIsEditing] = useState(false);
   const [currentProduct, setCurrentProduct] = useState<Partial<Product> | null>(null);
 
-  const fetchProducts = async () => {
-    const q = query(collection(db, 'products'), orderBy('createdAt', 'desc'));
-    const snapshot = await getDocs(q);
-    setProducts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product)));
-  };
+  const SIZES_RANGE = Array.from({ length: 16 }, (_, i) => (i + 30).toString());
 
-  useEffect(() => { fetchProducts(); }, []);
+  useEffect(() => {
+    const q = query(collection(db, 'products'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setProducts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product)));
+    }, (err) => {
+      console.error("Error products snapshot:", err);
+    });
+    return () => unsubscribe();
+  }, []);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    const data = { ...currentProduct, createdAt: serverTimestamp() };
+    
+    // Calculate total stock based on inventory
+    const totalStock = Object.values(currentProduct?.inventory || {}).reduce((acc, qty) => acc + (qty || 0), 0);
+    const availableSizes = Object.entries(currentProduct?.inventory || {})
+      .filter(([_, qty]) => (qty || 0) > 0)
+      .map(([size]) => size);
+
+    const data = { 
+      ...currentProduct, 
+      stock: totalStock,
+      sizes: availableSizes,
+      updatedAt: serverTimestamp(),
+      createdAt: currentProduct?.createdAt || serverTimestamp() 
+    };
+
     try {
       if (currentProduct?.id) {
         await updateDoc(doc(db, 'products', currentProduct.id), data);
@@ -263,16 +311,42 @@ function ProductManager() {
         await addDoc(collection(db, 'products'), data);
       }
       setIsEditing(false);
-      fetchProducts();
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, 'products');
     }
   };
 
+  const toggleSizeStock = (size: string) => {
+    const currentInv = currentProduct?.inventory || {};
+    const newInv = { ...currentInv };
+    
+    if (newInv[size] !== undefined) {
+      delete newInv[size];
+    } else {
+      newInv[size] = 0;
+    }
+    
+    setCurrentProduct({ ...currentProduct, inventory: newInv });
+  };
+
+  const updateSizeQty = (size: string, qty: string) => {
+    const val = parseInt(qty) || 0;
+    setCurrentProduct({
+      ...currentProduct,
+      inventory: {
+        ...(currentProduct?.inventory || {}),
+        [size]: val
+      }
+    });
+  };
+
   const handleDelete = async (id: string) => {
     if (confirm('Deseja excluir este produto?')) {
-      await deleteDoc(doc(db, 'products', id));
-      fetchProducts();
+      try {
+        await deleteDoc(doc(db, 'products', id));
+      } catch (err) {
+        handleFirestoreError(err, OperationType.DELETE, `products/${id}`);
+      }
     }
   };
 
@@ -299,7 +373,17 @@ function ProductManager() {
               referrerPolicy="no-referrer"
             />
             <h3 className="font-semibold text-gray-900 line-clamp-1">{product.name}</h3>
-            <p className="text-orange-600 font-bold">R$ {product.price.toFixed(2)}</p>
+            <div className="flex items-center gap-2">
+              <p className={cn("font-bold", product.salePrice ? "text-gray-400 line-through text-sm" : "text-brand-gold")}>
+                R$ {product.price.toFixed(2)}
+              </p>
+              {product.salePrice && (
+                <p className="text-brand-gold font-bold">
+                  R$ {product.salePrice.toFixed(2)}
+                </p>
+              )}
+            </div>
+            <p className="text-xs text-gray-500 mt-1">Estoque: {product.stock ?? 'S/Inf'}</p>
             <div className="mt-4 flex gap-2 justify-end">
               <button 
                 onClick={() => { setCurrentProduct(product); setIsEditing(true); }}
@@ -343,6 +427,13 @@ function ProductManager() {
                   required
                 />
                 <input
+                  type="number"
+                  placeholder="Preço em Promoção (R$) - Opcional"
+                  className="w-full p-2 border rounded-lg"
+                  value={currentProduct?.salePrice || ''}
+                  onChange={e => setCurrentProduct({ ...currentProduct, salePrice: e.target.value ? parseFloat(e.target.value) : undefined })}
+                />
+                <input
                   placeholder="URL da Imagem"
                   className="w-full p-2 border rounded-lg"
                   value={currentProduct?.imageUrl || ''}
@@ -361,12 +452,57 @@ function ProductManager() {
                   value={currentProduct?.category || ''}
                   onChange={e => setCurrentProduct({ ...currentProduct, category: e.target.value })}
                 />
-                <input
-                  placeholder="Tamanhos (ex: 37, 38, 39)"
-                  className="w-full p-2 border rounded-lg"
-                  value={currentProduct?.sizes?.join(', ') || ''}
-                  onChange={e => setCurrentProduct({ ...currentProduct, sizes: e.target.value.split(',').map(s => s.trim()) })}
-                />
+              </div>
+
+              {/* Inventory Management Section */}
+              <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-black text-brand-black uppercase tracking-tighter text-sm">Controle de Estoque (Grade)</h4>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase">Clique nos números para ativar e defina a quantidade</p>
+                  </div>
+                  <Package size={20} className="text-brand-gold" />
+                </div>
+                
+                <div className="grid grid-cols-4 sm:grid-cols-8 gap-3">
+                  {SIZES_RANGE.map(size => {
+                    const isActive = currentProduct?.inventory?.[size] !== undefined;
+                    return (
+                      <div key={size} className="space-y-1">
+                        <button
+                          type="button"
+                          onClick={() => toggleSizeStock(size)}
+                          className={cn(
+                            "w-full py-2 rounded-lg font-black text-xs transition-all border-2",
+                            isActive 
+                              ? "bg-brand-black text-brand-gold border-brand-black" 
+                              : "bg-white text-gray-300 border-gray-100 hover:border-gray-200"
+                          )}
+                        >
+                          {size}
+                        </button>
+                        {isActive && (
+                          <input
+                            type="number"
+                            placeholder="Qtd"
+                            className="w-full text-center text-[10px] font-bold p-1 border rounded bg-white"
+                            value={currentProduct?.inventory?.[size] || 0}
+                            onChange={(e) => updateSizeQty(size, e.target.value)}
+                           min="0"
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="bg-gray-50 p-4 rounded-lg border border-gray-100 flex items-start gap-3">
+                <ImageIcon className="text-gray-400 mt-1" size={20} />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-gray-700 mb-1">Dica de Imagem</p>
+                  <p className="text-xs text-gray-500">Use URLs de serviços como PostImage, ImgBB ou Cloudinary. Verifique se o link termina em .jpg, .png ou .webp para melhor compatibilidade.</p>
+                </div>
               </div>
               <textarea
                 placeholder="Descrição"
@@ -415,6 +551,130 @@ function ProductManager() {
   );
 }
 
+function InventoryManager() {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  useEffect(() => {
+    const q = query(collection(db, 'products'), orderBy('name', 'asc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setProducts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product)));
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const filteredProducts = products.filter(p => 
+    p.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const updateQty = async (productId: string, size: string, qty: number) => {
+    const product = products.find(p => p.id === productId);
+    if (!product) return;
+
+    const newInventory = { ...(product.inventory || {}), [size]: qty };
+    const totalStock = Object.values(newInventory).reduce((acc, v) => acc + (v || 0), 0);
+    const availableSizes = Object.entries(newInventory)
+      .filter(([_, v]) => (v || 0) > 0)
+      .map(([s]) => s);
+
+    try {
+      await updateDoc(doc(db, 'products', productId), {
+        inventory: newInventory,
+        stock: totalStock,
+        sizes: availableSizes,
+        updatedAt: serverTimestamp()
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
+        <div>
+          <h2 className="text-3xl font-black text-gray-900 tracking-tighter uppercase italic">Gestão de Inventário</h2>
+          <p className="text-gray-500 text-sm">Controle rápido de estoque por tamanho.</p>
+        </div>
+        <div className="w-full md:w-64 relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+          <input
+            type="text"
+            placeholder="Buscar produto..."
+            className="w-full pl-10 pr-4 py-2 bg-white border border-gray-100 rounded-xl focus:ring-2 focus:ring-brand-gold outline-none"
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+          />
+        </div>
+      </div>
+
+      <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead className="bg-gray-50 border-b border-gray-100">
+              <tr>
+                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Produto</th>
+                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Grade (30-45)</th>
+                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Total</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {filteredProducts.map(product => (
+                <tr key={product.id} className="hover:bg-gray-50/50 transition-colors">
+                  <td className="px-6 py-6">
+                    <div className="flex items-center gap-3">
+                      <img src={product.imageUrl} className="w-12 h-12 rounded-xl object-cover border" alt="" />
+                      <div>
+                        <p className="font-black text-brand-black uppercase tracking-tighter text-sm line-clamp-1">{product.name}</p>
+                        <p className="text-[10px] text-gray-400 font-bold">{product.category}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-6">
+                    <div className="flex flex-wrap gap-1.5 justify-center max-w-md mx-auto">
+                      {Array.from({ length: 16 }, (_, i) => (i + 30).toString()).map(size => {
+                        const qty = product.inventory?.[size];
+                        const isActive = qty !== undefined;
+                        return (
+                          <div key={size} className="flex flex-col items-center">
+                            <span className={cn(
+                              "text-[8px] font-black mb-1",
+                              isActive ? "text-brand-black" : "text-gray-300"
+                            )}>{size}</span>
+                            <input
+                              type="number"
+                              disabled={!isActive}
+                              className={cn(
+                                "w-10 text-center text-[10px] font-bold p-1 rounded transition-all",
+                                !isActive ? "bg-gray-50 text-gray-200 border-transparent" : "bg-white border text-brand-black",
+                                qty === 0 ? "border-red-200 text-red-500 font-black" : ""
+                              )}
+                              value={qty ?? 0}
+                              onChange={e => updateQty(product.id, size, parseInt(e.target.value) || 0)}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </td>
+                  <td className="px-6 py-6 text-right">
+                    <span className={cn(
+                      "font-black tracking-tighter text-lg px-4 py-2 rounded-2xl",
+                      (product.stock || 0) <= 5 ? "bg-red-50 text-red-600" : "bg-green-50 text-green-600"
+                    )}>
+                      {product.stock || 0}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SettingsManager() {
   const [settings, setSettings] = useState<Settings>({
     whatsappNumber: '5584986320918',
@@ -426,13 +686,15 @@ function SettingsManager() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchSettings = async () => {
-      const docRef = doc(db, 'settings', 'global');
-      const snap = await getDoc(docRef);
-      if (snap.exists()) setSettings(snap.data() as Settings);
+    const docRef = doc(db, 'settings', 'global');
+    const unsubscribe = onSnapshot(docRef, (snapshot) => {
+      if (snapshot.exists()) setSettings(snapshot.data() as Settings);
       setLoading(false);
-    };
-    fetchSettings();
+    }, (err) => {
+      console.error("Error settings snapshot:", err);
+      setLoading(false);
+    });
+    return () => unsubscribe();
   }, []);
 
   const handleSave = async (e: React.FormEvent) => {
@@ -506,25 +768,219 @@ function SettingsManager() {
   );
 }
 
-function DashboardOverview() {
+function OrderManager() {
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+
+  useEffect(() => {
+    const q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setOrders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order)));
+    }, (err) => {
+      console.error("Error orders snapshot:", err);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const updateOrderStatus = async (orderId: string, status: Order['status']) => {
+    try {
+      await updateDoc(doc(db, 'orders', orderId), { status });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `orders/${orderId}`);
+    }
+  };
+
+  const getStatusIcon = (status: Order['status']) => {
+    switch (status) {
+      case 'pending': return <Clock className="text-orange-500" size={18} />;
+      case 'processing': return <Package className="text-blue-500" size={18} />;
+      case 'shipped': return <Truck className="text-purple-500" size={18} />;
+      case 'delivered': return <CheckCircle className="text-green-500" size={18} />;
+      case 'cancelled': return <AlertCircle className="text-red-500" size={18} />;
+    }
+  };
+
+  const getStatusLabel = (status: Order['status']) => {
+    switch (status) {
+      case 'pending': return 'Pendente';
+      case 'processing': return 'Processando';
+      case 'shipped': return 'Enviado';
+      case 'delivered': return 'Entregue';
+      case 'cancelled': return 'Cancelado';
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-gray-900">Bem-vindo ao Painel</h2>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <StatCard label="Vendas via WhatsApp" value="R$ 0,00" sublabel="Este mês" />
-        <StatCard label="Pedidos Concluídos" value="0" sublabel="Este mês" />
-        <StatCard label="Visitas no Site" value="--" sublabel="Em breve" />
+      <h2 className="text-2xl font-bold text-gray-900">Pedidos Recentes</h2>
+      
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <table className="w-full text-left">
+          <thead className="bg-gray-50 border-b border-gray-200">
+            <tr>
+              <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Data</th>
+              <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Cliente</th>
+              <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Total</th>
+              <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Status</th>
+              <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Ações</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {orders.map(order => (
+              <tr key={order.id} className="hover:bg-gray-50 transition-colors">
+                <td className="px-6 py-4 text-sm text-gray-600">
+                  {order.createdAt?.toDate?.() ? order.createdAt.toDate().toLocaleDateString('pt-BR') : '---'}
+                </td>
+                <td className="px-6 py-4">
+                  <div className="text-sm font-medium text-gray-900">{order.customerName}</div>
+                  <div className="text-xs text-gray-500">{order.customerPhone}</div>
+                </td>
+                <td className="px-6 py-4 text-sm font-bold text-gray-900">
+                  R$ {order.total.toFixed(2)}
+                </td>
+                <td className="px-6 py-4">
+                  <div className="flex items-center gap-2">
+                    {getStatusIcon(order.status)}
+                    <span className="text-sm font-medium">{getStatusLabel(order.status)}</span>
+                  </div>
+                </td>
+                <td className="px-6 py-4">
+                  <select 
+                    className="text-xs border rounded p-1"
+                    value={order.status}
+                    onChange={(e) => updateOrderStatus(order.id, e.target.value as any)}
+                  >
+                    <option value="pending">Pendente</option>
+                    <option value="processing">Processando</option>
+                    <option value="shipped">Enviado</option>
+                    <option value="delivered">Entregue</option>
+                    <option value="cancelled">Cancelado</option>
+                  </select>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
 }
 
-function StatCard({ label, value, sublabel }: { label: string, value: string, sublabel: string }) {
+function DashboardOverview() {
+  const [stats, setStats] = useState({
+    totalSales: 0,
+    ordersCount: 0,
+    productsCount: 0,
+    pendingOrders: 0
+  });
+  const [recentOrders, setRecentOrders] = useState<Order[]>([]);
+
+  useEffect(() => {
+    const ordersUnsubscribe = onSnapshot(collection(db, 'orders'), (snapshot) => {
+      const orders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
+      const total = orders.reduce((acc, curr) => curr.status !== 'cancelled' ? acc + curr.total : acc, 0);
+      const pending = orders.filter(o => o.status === 'pending').length;
+      
+      setStats(prev => ({ 
+        ...prev, 
+        totalSales: total, 
+        ordersCount: snapshot.size,
+        pendingOrders: pending
+      }));
+
+      const sorted = [...orders].sort((a, b) => {
+        const dateA = a.createdAt?.toMillis?.() || 0;
+        const dateB = b.createdAt?.toMillis?.() || 0;
+        return dateB - dateA;
+      });
+      setRecentOrders(sorted.slice(0, 5));
+    });
+
+    const productsUnsubscribe = onSnapshot(collection(db, 'products'), (snapshot) => {
+      setStats(prev => ({ ...prev, productsCount: snapshot.size }));
+    });
+
+    return () => {
+      ordersUnsubscribe();
+      productsUnsubscribe();
+    };
+  }, []);
+
   return (
-    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-      <p className="text-sm font-medium text-gray-500 mb-1">{label}</p>
-      <p className="text-3xl font-bold text-gray-900">{value}</p>
-      <p className="text-xs text-gray-400 mt-2">{sublabel}</p>
+    <div className="space-y-8">
+      <div>
+        <h2 className="text-3xl font-black text-gray-900 tracking-tighter uppercase">Painel Geral</h2>
+        <p className="text-gray-500 text-sm">Visão geral do negócio em tempo real.</p>
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatCard label="Vendas Totais" value={`R$ ${stats.totalSales.toFixed(2)}`} sublabel="Pedidos confirmados" icon={<Globe className="text-blue-500" />} />
+        <StatCard label="Pedidos Totais" value={stats.ordersCount.toString()} sublabel="Total histórico" icon={<ShoppingCart className="text-purple-500" />} />
+        <StatCard label="Produtos Ativos" value={stats.productsCount.toString()} sublabel="No catálogo" icon={<Package className="text-orange-500" />} />
+        <StatCard label="Aguardando" value={stats.pendingOrders.toString()} sublabel="Pedidos pendentes" icon={<Clock className="text-brand-gold" />} />
+      </div>
+
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="font-bold text-gray-900 uppercase tracking-tighter">Últimas Vendas</h3>
+          <p className="text-[10px] font-black text-brand-gold uppercase tracking-widest bg-brand-gold/5 px-2 py-1 rounded">Sincronizado</p>
+        </div>
+        <div className="space-y-4">
+          {recentOrders.length === 0 ? (
+            <div className="text-center py-12 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-100">
+              <ShoppingCart size={40} className="mx-auto text-gray-200 mb-2" />
+              <p className="text-gray-400 text-xs font-bold uppercase">Nenhum pedido realizado ainda.</p>
+            </div>
+          ) : (
+            recentOrders.map(order => (
+              <div key={order.id} className="flex items-center justify-between p-4 bg-gray-50/50 border border-transparent rounded-2xl hover:border-brand-gold/20 hover:bg-white transition-all group shadow-sm hover:shadow-xl">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-white rounded-xl shadow-sm group-hover:bg-brand-black transition-colors">
+                    <ShoppingCart size={18} className="text-gray-400 group-hover:text-brand-gold" />
+                  </div>
+                  <div>
+                    <p className="font-black text-sm text-brand-black uppercase tracking-tighter">{order.customerName}</p>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
+                      {order.createdAt?.toDate?.() 
+                        ? `${order.createdAt.toDate().toLocaleDateString('pt-BR')} às ${order.createdAt.toDate().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+                        : 'Recém criado'}
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="font-black text-brand-black tracking-tighter">R$ {order.total.toFixed(2)}</p>
+                  <p className={cn(
+                    "text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full inline-block",
+                    order.status === 'delivered' ? 'bg-green-100 text-green-700' : 'bg-brand-gold/10 text-brand-gold'
+                  )}>
+                    {order.status}
+                  </p>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatCard({ label, value, sublabel, icon }: { label: string, value: string, sublabel?: string, icon?: React.ReactNode }) {
+  return (
+    <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 flex flex-col justify-between hover:shadow-2xl hover:-translate-y-1 transition-all border-b-8 border-b-brand-gold/10">
+      <div className="flex justify-between items-start mb-6">
+        <span className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">{label}</span>
+        <div className="p-2.5 bg-gray-50 rounded-xl">
+          {icon}
+        </div>
+      </div>
+      <div>
+        <p className="text-3xl font-black text-brand-black tracking-tighter leading-none">{value}</p>
+        {sublabel && <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mt-3 flex items-center gap-1.5">
+          <div className="w-1.5 h-1.5 rounded-full bg-brand-gold animate-pulse" />
+          {sublabel}
+        </p>}
+      </div>
     </div>
   );
 }

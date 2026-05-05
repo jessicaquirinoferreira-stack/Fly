@@ -75,11 +75,12 @@ service cloud.firestore {
     }
 
     function isValidOrder(data) {
-      return data.keys().hasAll(['customerName', 'customerPhone', 'address', 'items', 'total', 'createdAt']) &&
+      return data.keys().hasAll(['customerName', 'customerPhone', 'address', 'items', 'total', 'createdAt', 'status']) &&
              data.customerName is string && data.customerName.size() > 0 &&
              data.customerPhone is string && data.customerPhone.size() > 0 &&
              data.total is number && data.total >= 0 &&
-             data.createdAt == request.time; // Strict timestamp
+             data.status in ['pending', 'processing', 'shipped', 'delivered', 'cancelled'] &&
+             (data.createdAt is timestamp || data.createdAt == request.time);
     }
 
     // Admins collection - used for RBAC

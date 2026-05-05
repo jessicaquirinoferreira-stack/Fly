@@ -4,7 +4,10 @@ import {
   MapPin, Phone, Truck, CreditCard, ChevronRight, Minus, Plus,
   Crown
 } from 'lucide-react';
-import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { 
+  collection, query, where, getDocs, doc, getDoc, 
+  onSnapshot, addDoc, serverTimestamp, orderBy 
+} from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { Product, CartItem, Settings } from '../../types';
 import { cn } from '../../lib/utils';
@@ -52,18 +55,18 @@ export default function Shop() {
   }, [showAIPopup]);
 
   useEffect(() => {
-    const fetchData = async () => {
-      // Products
-      const q = query(collection(db, 'products'), where('active', '==', true));
-      const snap = await getDocs(q);
+    // Products Real-time
+    const qProducts = query(collection(db, 'products'), where('active', '==', true), orderBy('createdAt', 'desc'));
+    const unsubscribeProducts = onSnapshot(qProducts, (snap) => {
       setProducts(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product)));
+    }, (err) => console.error("Products sync error:", err));
 
-      // Settings
-      const setSnap = await getDoc(doc(db, 'settings', 'global'));
+    // Settings Real-time
+    const docSettings = doc(db, 'settings', 'global');
+    const unsubscribeSettings = onSnapshot(docSettings, (setSnap) => {
       if (setSnap.exists()) {
         setSettings(setSnap.data() as Settings);
       } else {
-        // Fallback for first run or missing doc
         setSettings({
           storeName: 'Flay Store',
           whatsappNumber: '5584986320918',
@@ -72,8 +75,12 @@ export default function Shop() {
           email: 'Flaystoreatacado@gmail.com'
         });
       }
+    });
+
+    return () => {
+      unsubscribeProducts();
+      unsubscribeSettings();
     };
-    fetchData();
   }, []);
 
   const addToCart = (product: Product, size?: string) => {
@@ -109,6 +116,11 @@ export default function Shop() {
     const matchesCategory = activeCategory === 'Todos' || p.category === activeCategory;
     return matchesSearch && matchesCategory;
   });
+
+  const subtotal = cart.reduce((acc, item) => {
+    const price = item.salePrice || item.price;
+    return acc + (price * item.quantity);
+  }, 0);
 
   const categories = ['Todos', ...Array.from(new Set(products.map(p => p.category).filter(Boolean)))];
 
@@ -422,7 +434,7 @@ export default function Shop() {
                             <span className="px-2 text-sm font-bold min-w-[2rem] text-center">{item.quantity}</span>
                             <button onClick={() => updateQuantity(item.id, item.selectedSize, 1)} className="p-1 px-2 hover:bg-gray-100 transition"><Plus size={14}/></button>
                           </div>
-                          <p className="font-bold text-brand-gold">R$ {(item.price * item.quantity).toFixed(2)}</p>
+                          <p className="font-bold text-brand-gold">R$ {((item.salePrice || item.price) * item.quantity).toFixed(2)}</p>
                         </div>
                       </div>
                     </div>
@@ -434,7 +446,7 @@ export default function Shop() {
                 <div className="p-6 bg-gray-50/50 border-t border-gray-100 space-y-4">
                   <div className="flex justify-between text-lg font-bold">
                     <span>Total</span>
-                    <span className="text-brand-gold">R$ {cart.reduce((acc, item) => acc + (item.price * item.quantity), 0).toFixed(2)}</span>
+                    <span className="text-brand-gold">R$ {subtotal.toFixed(2)}</span>
                   </div>
                   <button 
                     onClick={() => { setIsCartOpen(false); setIsCheckoutOpen(true); }}
@@ -526,7 +538,8 @@ interface ProductCardProps {
 }
 
 function ProductCard({ product, onAddToCart }: ProductCardProps) {
-  const [selectedSize, setSelectedSize] = useState<string | undefined>(product.sizes?.[0]);
+  const availableSizes = product.sizes.filter(size => (product.inventory?.[size] ?? 0) > 0);
+  const [selectedSize, setSelectedSize] = useState<string | undefined>(availableSizes[0]);
 
   return (
     <div className="group relative">
@@ -538,9 +551,11 @@ function ProductCard({ product, onAddToCart }: ProductCardProps) {
               🔥 MAIS VENDIDO
             </span>
           )}
-          <span className="bg-brand-gold text-brand-black px-3 py-1 rounded-full text-[10px] font-black tracking-widest shadow-lg">
-            ⚡ ÚLTIMAS UNIDADES
-          </span>
+          {product.stock && product.stock <= 10 && (
+            <span className="bg-brand-gold text-brand-black px-3 py-1 rounded-full text-[10px] font-black tracking-widest shadow-lg">
+              ⚡ ÚLTIMAS {product.stock} UNIDADES
+            </span>
+          )}
         </div>
 
         <img 
@@ -550,15 +565,23 @@ function ProductCard({ product, onAddToCart }: ProductCardProps) {
           referrerPolicy="no-referrer"
         />
         
-        <div className="absolute inset-x-0 bottom-0 p-4 translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-out">
-          <button 
-            onClick={() => onAddToCart(product, selectedSize)}
-            className="w-full bg-brand-black text-brand-gold py-4 rounded-2xl font-black shadow-2xl hover:bg-black transition flex items-center justify-center gap-2 border border-brand-gold/50"
-          >
-            <ShoppingBag size={20} />
-            COMPRAR AGORA
-          </button>
-        </div>
+        {availableSizes.length > 0 ? (
+          <div className="absolute inset-x-0 bottom-0 p-4 translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-out">
+            <button 
+              onClick={() => onAddToCart(product, selectedSize)}
+              className="w-full bg-brand-black text-brand-gold py-4 rounded-2xl font-black shadow-2xl hover:bg-black transition flex items-center justify-center gap-2 border border-brand-gold/50"
+            >
+              <ShoppingBag size={20} />
+              COMPRAR AGORA
+            </button>
+          </div>
+        ) : (
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center p-4">
+            <div className="bg-white px-6 py-2 rounded-full font-black text-xs text-red-600 uppercase tracking-widest shadow-2xl">
+              Esgotado
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="space-y-2 px-2">
@@ -569,9 +592,9 @@ function ProductCard({ product, onAddToCart }: ProductCardProps) {
           </div>
         </div>
         
-        {product.sizes && product.sizes.length > 0 && (
+        {availableSizes.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mt-3">
-            {product.sizes.map(size => (
+            {availableSizes.map(size => (
               <button
                 key={size}
                 onClick={(e) => { e.stopPropagation(); setSelectedSize(size); }}
@@ -589,9 +612,13 @@ function ProductCard({ product, onAddToCart }: ProductCardProps) {
         )}
 
         <div className="flex items-center gap-3 pt-2">
-          <p className="text-xl font-black text-brand-black">R$ {product.price.toFixed(2)}</p>
-          {product.salePrice && (
-            <p className="text-sm text-gray-400 line-through font-bold">R$ {product.salePrice.toFixed(2)}</p>
+          {product.salePrice ? (
+            <>
+              <p className="text-xl font-black text-brand-black tracking-tighter">R$ {product.salePrice.toFixed(2)}</p>
+              <p className="text-sm text-gray-400 line-through font-bold">R$ {product.price.toFixed(2)}</p>
+            </>
+          ) : (
+            <p className="text-xl font-black text-brand-black tracking-tighter">R$ {product.price.toFixed(2)}</p>
           )}
         </div>
       </div>
@@ -615,7 +642,10 @@ function CheckoutModal({ isOpen, onClose, cart, settings }: { isOpen: boolean, o
   const [shippingCost, setShippingCost] = useState<number | null>(null);
   const [loadingCep, setLoadingCep] = useState(false);
 
-  const subtotal = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+  const subtotal = cart.reduce((acc, item) => {
+    const price = item.salePrice || item.price;
+    return acc + (price * item.quantity);
+  }, 0);
   const total = subtotal + (shippingCost || 0);
 
   const handleCepChange = async (cep: string) => {
@@ -654,30 +684,65 @@ function CheckoutModal({ isOpen, onClose, cart, settings }: { isOpen: boolean, o
     }
   };
 
-  const finalizeOrder = () => {
-    const text = `*NOVO PEDIDO - ${settings?.storeName}*\n\n` +
-      `*CLIENTE:*\n` +
-      `👤 ${formData.name}\n` +
-      `📞 ${formData.phone}\n\n` +
-      `*ENDEREÇO:*\n` +
-      `📍 ${formData.street}, ${formData.number} ${formData.complement ? `- ${formData.complement}` : ''}\n` +
-      `🏡 ${formData.neighborhood}\n` +
-      `🏙️ ${formData.city} - ${formData.state}\n` +
-      `📮 CEP: ${formData.cep}\n\n` +
-      `*ITENS:*\n` +
-      cart.map(item => `- ${item.quantity}x ${item.name} ${item.selectedSize ? `(Tam: ${item.selectedSize})` : ''} - R$ ${(item.price * item.quantity).toFixed(2)}`).join('\n') +
-      `\n\n` +
-      `*FINANCEIRO:*\n` +
-      `📦 Subtotal: R$ ${subtotal.toFixed(2)}\n` +
-      `🚚 Frete: R$ ${shippingCost?.toFixed(2) || '0.00'}\n` +
-      `💰 *TOTAL: R$ ${total.toFixed(2)}*\n\n` +
-      `_Aguardando confirmação de pagamento..._`;
+  const finalizeOrder = async () => {
+    const orderData = {
+      customerName: formData.name,
+      customerPhone: formData.phone,
+      address: {
+        cep: formData.cep,
+        street: formData.street,
+        number: formData.number,
+        complement: formData.complement,
+        neighborhood: formData.neighborhood,
+        city: formData.city,
+        state: formData.state
+      },
+      items: cart.map(item => ({
+        id: item.id,
+        name: item.name,
+        price: item.salePrice || item.price,
+        quantity: item.quantity,
+        selectedSize: item.selectedSize,
+        imageUrl: item.imageUrl
+      })),
+      subtotal,
+      shippingCost: shippingCost || 0,
+      total,
+      status: 'pending',
+      createdAt: serverTimestamp()
+    };
 
-    const encodedText = encodeURIComponent(text);
-    const cleanNumber = settings?.whatsappNumber?.replace(/\D/g, '') || '';
-    const formattedNumber = cleanNumber.startsWith('55') ? cleanNumber : `55${cleanNumber}`;
-    const whatsappUrl = `https://wa.me/${formattedNumber}?text=${encodedText}`;
-    window.location.href = whatsappUrl;
+    try {
+      // Save order to Firestore
+      await addDoc(collection(db, 'orders'), orderData);
+      
+      const text = `*NOVO PEDIDO - ${settings?.storeName}*\n\n` +
+        `*CLIENTE:*\n` +
+        `👤 ${formData.name}\n` +
+        `📞 ${formData.phone}\n\n` +
+        `*ENDEREÇO:*\n` +
+        `📍 ${formData.street}, ${formData.number} ${formData.complement ? `- ${formData.complement}` : ''}\n` +
+        `🏡 ${formData.neighborhood}\n` +
+        `🏙️ ${formData.city} - ${formData.state}\n` +
+        `📮 CEP: ${formData.cep}\n\n` +
+        `*ITENS:*\n` +
+        cart.map(item => `- ${item.quantity}x ${item.name} ${item.selectedSize ? `(Tam: ${item.selectedSize})` : ''} - R$ ${((item.salePrice || item.price) * item.quantity).toFixed(2)}`).join('\n') +
+        `\n\n` +
+        `*FINANCEIRO:*\n` +
+        `📦 Subtotal: R$ ${subtotal.toFixed(2)}\n` +
+        `🚚 Frete: R$ ${shippingCost?.toFixed(2) || '0.00'}\n` +
+        `💰 *TOTAL: R$ ${total.toFixed(2)}*\n\n` +
+        `_Aguardando confirmação de pagamento..._`;
+
+      const encodedText = encodeURIComponent(text);
+      const cleanNumber = settings?.whatsappNumber?.replace(/\D/g, '') || '';
+      const formattedNumber = cleanNumber.startsWith('55') ? cleanNumber : `55${cleanNumber}`;
+      const whatsappUrl = `https://wa.me/${formattedNumber}?text=${encodedText}`;
+      window.location.href = whatsappUrl;
+    } catch (err) {
+      console.error("Error saving order:", err);
+      alert("Houve um erro ao processar seu pedido. Por favor, tente novamente.");
+    }
   };
 
   if (!isOpen) return null;

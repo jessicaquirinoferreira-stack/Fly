@@ -8,8 +8,10 @@ export interface Product {
   category: string;
   brand: string;
   sizes: string[];
+  inventory?: { [key: string]: number };
   featured: boolean;
   active: boolean;
+  stock?: number;
   createdAt: any;
 }
 
@@ -23,7 +25,7 @@ export interface Settings {
 }
 
 export interface Order {
-  id?: string;
+  id: string;
   customerName: string;
   customerPhone: string;
   address: {
@@ -39,6 +41,7 @@ export interface Order {
   subtotal: number;
   shippingCost: number;
   total: number;
+  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
   createdAt: any;
 }
 
