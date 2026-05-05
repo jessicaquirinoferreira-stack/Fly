@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { 
   Plus, Search, Edit2, Trash2, Settings as SettingsIcon, 
   Package, LayoutDashboard, LogOut, ChevronRight, Save, X, Image as ImageIcon,
-  ShoppingCart, CheckCircle, Clock, Truck, AlertCircle, ExternalLink, Globe
+  ShoppingCart, CheckCircle, Clock, Truck, AlertCircle, ExternalLink, Globe,
+  ArrowLeft
 } from 'lucide-react';
 import { 
   collection, addDoc, getDocs, updateDoc, deleteDoc, doc, 
@@ -83,11 +85,15 @@ export default function AdminPanel() {
   return (
     <div className="flex h-screen bg-gray-50">
       {/* Sidebar */}
-      <aside className="w-64 bg-white border-r border-gray-200">
-        <div className="p-6">
-          <h2 className="text-xl font-bold text-gray-900">Admin Flay Store</h2>
+      <aside className="w-64 bg-white border-r border-gray-200 relative">
+        <div className="p-6 border-b border-gray-100 mb-6">
+          <Link to="/" className="flex items-center gap-2 text-gray-400 hover:text-brand-black transition-colors mb-4 group">
+            <ArrowLeft size={14} className="group-hover:-translate-x-1 transition-transform" />
+            <span className="text-[10px] font-black uppercase tracking-widest">Loja</span>
+          </Link>
+          <h2 className="text-xl font-bold text-gray-900 tracking-tighter">ADMIN <span className="text-brand-gold italic">FLAY</span></h2>
         </div>
-        <nav className="mt-6 space-y-1 px-3">
+        <nav className="space-y-1 px-3">
           <SidebarItem 
             icon={<LayoutDashboard size={20} />} 
             label="Dashboard" 
@@ -173,10 +179,12 @@ function AdminLogin() {
       await signInWithEmailAndPassword(auth, email, password);
     } catch (err: any) {
       console.error('Login error:', err);
+      const currentDomain = typeof window !== 'undefined' ? window.location.hostname : '';
+      
       if (err.code === 'auth/operation-not-allowed') {
         setError('O login por E-mail/Senha não está habilitado no Console do Firebase. Vá em Authentication > Sign-in method e ative "E-mail/Senha".');
-      } else if (err.code === 'auth/network-request-failed') {
-        setError('Falha na rede. Verifique se o domínio do site está na lista de "Domínios Autorizados" no Console do Firebase (Authentication > Settings) ou se algum AdBlock está bloqueando o acesso.');
+      } else if (err.code === 'auth/network-request-failed' || err.code === 'auth/unauthorized-domain') {
+        setError(`ACESSO BLOQUEADO PELO FIREBASE: Você precisa adicionar o domínio "${currentDomain}" na lista de "Domínios Autorizados" no Console do Firebase (Authentication > Settings > Authorized Domains).`);
       } else if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
         setError('E-mail ou senha incorretos.');
       } else {
@@ -188,7 +196,13 @@ function AdminLogin() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 relative">
+      <Link to="/" className="absolute top-8 left-8 flex items-center gap-2 group">
+        <div className="p-2 bg-white rounded-xl shadow-sm group-hover:shadow-md transition-all">
+          <ArrowLeft size={20} className="text-brand-black" />
+        </div>
+        <span className="font-black text-brand-black uppercase tracking-tighter text-xs">Voltar ao Site</span>
+      </Link>
       <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-2xl shadow-xl">
         <div className="text-center">
           <h2 className="text-3xl font-black text-brand-black tracking-tighter uppercase italic">

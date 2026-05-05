@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { 
   ShoppingBag, Search, Instagram, Facebook, Menu, X, Trash2,
   MapPin, Phone, Truck, CreditCard, ChevronRight, Minus, Plus,
-  Crown
+  Crown, Lock
 } from 'lucide-react';
 import { 
   collection, query, where, getDocs, doc, getDoc, 
@@ -352,7 +353,10 @@ export default function Shop() {
                 <li><a href="#" className="hover:text-brand-gold transition-colors">Sobre nós</a></li>
                 <li><a href="#" className="hover:text-brand-gold transition-colors">Políticas de Privacidade</a></li>
                 <li><a href="#" className="hover:text-brand-gold transition-colors">Termos de Uso</a></li>
-                <li><a href="/admin" className="text-xs text-gray-300 hover:text-brand-gold transition-colors">Área Administrativa</a></li>
+                <li><Link to="/admin" className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-[10px] font-black text-gray-400 uppercase tracking-widest rounded-xl hover:bg-brand-black hover:text-brand-gold transition-all duration-300">
+                  <Lock size={12} />
+                  Área Administrativa
+                </Link></li>
               </ul>
             </div>
             <div>
