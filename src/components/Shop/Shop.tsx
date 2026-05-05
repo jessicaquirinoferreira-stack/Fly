@@ -634,6 +634,21 @@ function ProductCard({ product, onAddToCart }: ProductCardProps) {
             <p className="text-xl font-black text-brand-black tracking-tighter">R$ {product.price.toFixed(2)}</p>
           )}
         </div>
+
+        {/* Mobile-First Buy Button (Always visible below product) */}
+        <button 
+          onClick={() => onAddToCart(product, selectedSize)}
+          disabled={availableSizes.length === 0}
+          className={cn(
+            "w-full mt-4 py-4 rounded-2xl font-black uppercase tracking-widest text-[11px] flex items-center justify-center gap-2 transition-all shadow-lg active:scale-95",
+            availableSizes.length > 0
+              ? "bg-brand-gold text-brand-black hover:bg-brand-gold-dark shadow-brand-gold/20"
+              : "bg-gray-100 text-gray-400 cursor-not-allowed"
+          )}
+        >
+          <ShoppingBag size={16} />
+          {availableSizes.length > 0 ? "COMPRA JÁ" : "ESGOTADO"}
+        </button>
       </div>
     </div>
   );
