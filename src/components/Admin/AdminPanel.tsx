@@ -132,15 +132,6 @@ export default function AdminPanel() {
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto p-8 relative">
-        {isIframe && (
-          <button 
-            onClick={() => window.open(window.location.href, '_blank')}
-            className="absolute top-4 right-4 z-50 flex items-center gap-2 px-3 py-1.5 bg-brand-gold text-brand-black text-[10px] font-black rounded-lg shadow-xl hover:scale-105 transition-transform"
-          >
-            <ExternalLink size={12} />
-            ABRIR EM NOVA GUIA (PAINEL LOGADO)
-          </button>
-        )}
         {activeTab === 'dashboard' && <DashboardOverview />}
         {activeTab === 'products' && <ProductManager />}
         {activeTab === 'orders' && <OrderManager />}
@@ -200,39 +191,15 @@ function AdminLogin() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-2xl shadow-xl">
         <div className="text-center">
-          <h2 className="text-3xl font-extrabold text-gray-900">Admin Login</h2>
+          <h2 className="text-3xl font-black text-brand-black tracking-tighter uppercase italic">
+            Área <span className="text-brand-gold">Restrita</span>
+          </h2>
           <p className="mt-2 text-sm text-gray-600">Acesse o painel de gerenciamento</p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleLogin}>
-          {isIframe && (
-            <div className="p-5 bg-orange-50 border border-orange-200 rounded-2xl text-center space-y-4">
-              <div className="flex justify-center">
-                <div className="p-3 bg-orange-100 rounded-full animate-bounce">
-                  <ExternalLink size={24} className="text-orange-600" />
-                </div>
-              </div>
-              <div className="space-y-1">
-                <p className="font-black text-orange-900 text-sm uppercase tracking-tighter">Login Bloqueado no Preview</p>
-                <p className="text-xs text-orange-700 leading-relaxed">Para segurança, o login não funciona dentro deste quadro. Clique abaixo para abrir o site em uma nova aba e acessar o painel.</p>
-              </div>
-              <button 
-                onClick={() => window.open(window.location.href, '_blank')}
-                className="w-full py-3 bg-orange-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-orange-700 transition-all shadow-lg shadow-orange-200"
-              >
-                <ExternalLink size={18} />
-                ABRIR SITE EM NOVA GUIA
-              </button>
-            </div>
-          )}
-
           {error && (
-            <div className="p-3 bg-red-50 text-red-600 rounded-lg text-sm">
+            <div className="p-3 bg-red-50 text-red-600 rounded-lg text-sm border border-red-100">
               <p className="font-medium">{error}</p>
-              {error.includes('rede') && (
-                <p className="text-[10px] mt-2 font-bold uppercase tracking-tight text-red-700">
-                  ⚠️ Dica: Se o erro persistir, tente abrir o site em uma "Nova Guia" (ícone no topo direito do preview) para evitar bloqueios do navegador.
-                </p>
-              )}
             </div>
           )}
           <div className="space-y-4">
