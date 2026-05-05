@@ -669,6 +669,7 @@ function CheckoutModal({ isOpen, onClose, cart, settings }: { isOpen: boolean, o
   });
   const [shippingCost, setShippingCost] = useState<number | null>(null);
   const [loadingCep, setLoadingCep] = useState(false);
+  const [cepError, setCepError] = useState(false);
 
   const subtotal = cart.reduce((acc, item) => {
     const price = item.salePrice || item.price;
@@ -680,14 +681,23 @@ function CheckoutModal({ isOpen, onClose, cart, settings }: { isOpen: boolean, o
   const total = subtotal + (deliveryCost || 0);
 
   const handleCepChange = async (cep: string) => {
-    const cleanCep = cep.replace(/\D/g, '');
+    const cleanCep = cep.replace(/\D/g, '').slice(0, 8);
     setFormData(prev => ({ ...prev, cep: cleanCep }));
+    setCepError(false);
     
+    // Clear previous shipping data if CEP is changing
+    if (cleanCep.length < 8) {
+      setShippingCost(null);
+      return;
+    }
+
     if (cleanCep.length === 8) {
       setLoadingCep(true);
+      setShippingCost(null); // Reset before new calculation
       try {
         const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
         const data = await response.json();
+        
         if (!data.erro) {
           setFormData(prev => ({
             ...prev,
@@ -698,7 +708,6 @@ function CheckoutModal({ isOpen, onClose, cart, settings }: { isOpen: boolean, o
           }));
           
           // Realistic mock shipping based on region
-          // Standard simulation
           let cost = 15.00;
           if (['SP', 'RJ', 'MG', 'ES'].includes(data.uf)) cost = 19.90;
           else if (['PR', 'SC', 'RS'].includes(data.uf)) cost = 24.90;
@@ -706,9 +715,14 @@ function CheckoutModal({ isOpen, onClose, cart, settings }: { isOpen: boolean, o
           else cost = 45.00;
           
           setShippingCost(cost);
+        } else {
+          // CEP not found
+          setShippingCost(null);
+          setCepError(true);
         }
       } catch (err) {
         console.error('ViaCEP Error:', err);
+        setShippingCost(25.00); // Fail-safe default shipping if API fails
       } finally {
         setLoadingCep(false);
       }
@@ -757,7 +771,12 @@ function CheckoutModal({ isOpen, onClose, cart, settings }: { isOpen: boolean, o
         `🏙️ ${formData.city} - ${formData.state}\n` +
         `📮 CEP: ${formData.cep}\n\n` +
         `*ITENS:*\n` +
-        cart.map(item => `- ${item.quantity}x ${item.name} ${item.selectedSize ? `(Tam: ${item.selectedSize})` : ''} - R$ ${((item.salePrice || item.price) * item.quantity).toFixed(2)}`).join('\n') +
+        cart.map(item => 
+          `👞 *${item.quantity}x ${item.name}*\n` +
+          `📏 *TAMANHO/NÚMERO:* ${item.selectedSize || 'Padrão'}\n` +
+          `🖼️ *LINK DA FOTO:* ${item.imageUrl}\n` +
+          `💰 *SUBTOTAL ITENS:* R$ ${((item.salePrice || item.price) * item.quantity).toFixed(2)}`
+        ).join('\n\n') +
         `\n\n` +
         `*FINANCEIRO:*\n` +
         `📦 Subtotal: R$ ${subtotal.toFixed(2)}\n` +
@@ -819,7 +838,10 @@ function CheckoutModal({ isOpen, onClose, cart, settings }: { isOpen: boolean, o
                   <div className="relative">
                     <input 
                       placeholder="CEP (8 dígitos)" 
-                      className="w-full px-4 py-3 bg-gray-50 rounded-xl focus:ring-2 focus:ring-brand-gold border-2 border-transparent focus:border-black font-black text-black"
+                      className={cn(
+                        "w-full px-4 py-3 bg-gray-50 rounded-xl focus:ring-2 border-2 font-black text-black transition-all",
+                        cepError ? "border-red-500 focus:ring-red-500" : "border-transparent focus:border-black focus:ring-brand-gold"
+                      )}
                       value={formData.cep}
                       onChange={e => handleCepChange(e.target.value)}
                       maxLength={8}
@@ -828,6 +850,9 @@ function CheckoutModal({ isOpen, onClose, cart, settings }: { isOpen: boolean, o
                       <div className="absolute right-3 top-1/2 -translate-y-1/2">
                         <div className="w-5 h-5 border-2 border-brand-gold border-t-transparent rounded-full animate-spin" />
                       </div>
+                    )}
+                    {cepError && (
+                      <p className="text-[10px] text-red-500 font-bold mt-1 ml-1 uppercase tracking-wider italic">CEP NÃO ENCONTRADO!</p>
                     )}
                   </div>
                   <input 
@@ -914,7 +939,7 @@ function CheckoutModal({ isOpen, onClose, cart, settings }: { isOpen: boolean, o
 
               <button 
                 onClick={() => setStep(2)}
-                disabled={!formData.name || !formData.phone || !formData.cep || !formData.street || !formData.number || !formData.city}
+                disabled={!formData.name || !formData.phone || !formData.cep || !formData.street || !formData.number || !formData.city || deliveryCost === null}
                 className="w-full bg-black text-white py-5 rounded-3xl font-black uppercase tracking-widest hover:bg-zinc-900 transition-all shadow-2xl disabled:opacity-20 flex items-center justify-center gap-3 border-2 border-brand-gold group"
               >
                 PRÓXIMO PASSO
