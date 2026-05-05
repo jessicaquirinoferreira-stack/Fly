@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { 
   ShoppingBag, Search, Instagram, Facebook, Menu, X, Trash2,
   MapPin, Phone, Truck, CreditCard, ChevronRight, Minus, Plus,
@@ -17,7 +16,7 @@ import { motion, AnimatePresence } from 'motion/react';
 // Common fonts
 // Inter (Sans) is already default in Tailwind theme in many setups here.
 
-export default function Shop() {
+export default function Shop({ onOpenAdmin }: { onOpenAdmin?: () => void }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -353,10 +352,20 @@ export default function Shop() {
                 <li><a href="#" className="hover:text-brand-gold transition-colors">Sobre nós</a></li>
                 <li><a href="#" className="hover:text-brand-gold transition-colors">Políticas de Privacidade</a></li>
                 <li><a href="#" className="hover:text-brand-gold transition-colors">Termos de Uso</a></li>
-                <li><Link to="/admin" className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-[10px] font-black text-gray-400 uppercase tracking-widest rounded-xl hover:bg-brand-black hover:text-brand-gold transition-all duration-300">
-                  <Lock size={12} />
-                  Área Administrativa
-                </Link></li>
+                <li>
+                  <button 
+                    onClick={onOpenAdmin}
+                    className="w-full flex items-center gap-3 p-4 bg-brand-black/5 hover:bg-brand-black group transition-all duration-500 rounded-2xl border border-dashed border-gray-200 hover:border-brand-gold/50 cursor-pointer text-left"
+                  >
+                    <div className="p-2 bg-white rounded-xl shadow-sm group-hover:bg-brand-gold transition-colors">
+                      <Lock size={16} className="text-brand-black" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-black group-hover:text-brand-gold">Portal do Lojista</p>
+                      <p className="text-[8px] font-bold text-gray-400 uppercase group-hover:text-white/50">Área Restrita / Admin</p>
+                    </div>
+                  </button>
+                </li>
               </ul>
             </div>
             <div>

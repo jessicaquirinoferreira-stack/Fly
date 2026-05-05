@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { 
   Plus, Search, Edit2, Trash2, Settings as SettingsIcon, 
   Package, LayoutDashboard, LogOut, ChevronRight, Save, X, Image as ImageIcon,
@@ -17,13 +16,23 @@ import { cn, handleFirestoreError, OperationType } from '../../lib/utils';
 
 const isIframe = typeof window !== 'undefined' && window !== window.parent;
 
-export default function AdminPanel() {
+export default function AdminPanel({ onClose }: { onClose: () => void }) {
   const [user, setUser] = useState<any>(null);
   const [isAdminUser, setIsAdminUser] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isServerAuthed, setIsServerAuthed] = useState<boolean>(() => {
+    return sessionStorage.getItem('admin_server_authed') === 'true';
+  });
   const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'settings' | 'orders' | 'inventory'>('dashboard');
 
   useEffect(() => {
+    // Check for server-side auth first
+    if (isServerAuthed) {
+      setIsAdminUser(true);
+      setLoading(false);
+      return;
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       setUser(u);
       if (u) {
@@ -42,9 +51,6 @@ export default function AdminPanel() {
             });
           }
           
-          // Now check if we can actually list products
-          const q = query(collection(db, 'products'), orderBy('createdAt', 'desc'));
-          await getDocs(q);
           setIsAdminUser(true);
         } catch (err: any) {
           console.error("Admin check failed", err);
@@ -56,41 +62,28 @@ export default function AdminPanel() {
       setLoading(false);
     });
     return () => unsubscribe();
-  }, []);
+  }, [isServerAuthed]);
 
   if (loading) return <div className="h-screen flex items-center justify-center">Carregando...</div>;
-  if (!user) return <AdminLogin />;
-  if (isAdminUser === null) return <div className="h-screen flex items-center justify-center text-brand-gold font-bold animate-pulse uppercase tracking-[0.2em] italic">Segurança: Verificando Nível de Acesso...</div>;
+  if (!user && !isServerAuthed) return <AdminLogin onServerSuccess={() => setIsServerAuthed(true)} onClose={onClose} />;
+  if (isAdminUser === null && !isServerAuthed) return <div className="h-screen flex items-center justify-center text-brand-gold font-bold animate-pulse uppercase tracking-[0.2em] italic">Segurança: Verificando Nível de Acesso...</div>;
 
-  if (isAdminUser === false) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-        <div className="max-w-md w-full space-y-4 p-8 bg-white rounded-2xl shadow-xl text-center">
-          <div className="text-red-500 mb-4">
-            <X size={48} className="mx-auto" />
-          </div>
-          <h2 className="text-2xl font-bold text-gray-900">Acesso Negado</h2>
-          <p className="text-gray-600">Este e-mail ({user.email}) não tem permissão de administrador.</p>
-          <button 
-            onClick={() => signOut(auth)}
-            className="mt-6 w-full py-3 bg-brand-black text-white rounded-lg hover:bg-black transition"
-          >
-            Sair e tentar outro e-mail
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const handleLogout = async () => {
+    await signOut(auth);
+    sessionStorage.removeItem('admin_server_authed');
+    setIsServerAuthed(false);
+    setIsAdminUser(null);
+  };
 
   return (
     <div className="flex h-screen bg-gray-50">
       {/* Sidebar */}
       <aside className="w-64 bg-white border-r border-gray-200 relative">
         <div className="p-6 border-b border-gray-100 mb-6">
-          <Link to="/" className="flex items-center gap-2 text-gray-400 hover:text-brand-black transition-colors mb-4 group">
+          <button onClick={onClose} className="flex items-center gap-2 text-gray-400 hover:text-brand-black transition-colors mb-4 group">
             <ArrowLeft size={14} className="group-hover:-translate-x-1 transition-transform" />
-            <span className="text-[10px] font-black uppercase tracking-widest">Loja</span>
-          </Link>
+            <span className="text-[10px] font-black uppercase tracking-widest">Sair do Admin</span>
+          </button>
           <h2 className="text-xl font-bold text-gray-900 tracking-tighter">ADMIN <span className="text-brand-gold italic">FLAY</span></h2>
         </div>
         <nav className="space-y-1 px-3">
@@ -127,22 +120,30 @@ export default function AdminPanel() {
         </nav>
         <div className="absolute bottom-0 w-64 p-4 border-t border-gray-200">
           <button 
-            onClick={() => signOut(auth)}
+            onClick={handleLogout}
             className="flex items-center gap-3 w-full p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
           >
             <LogOut size={20} />
-            Sair
+            Sair do Painel
           </button>
         </div>
       </aside>
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto p-8 relative">
+        {isServerAuthed && (
+          <div className="absolute top-4 right-8 z-50">
+            <div className="px-3 py-1 bg-green-50 text-green-600 text-[10px] font-black uppercase tracking-widest rounded-full border border-green-100 flex items-center gap-2">
+              <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+              Sincronização Direta Ativa (Modo Estável)
+            </div>
+          </div>
+        )}
         {activeTab === 'dashboard' && <DashboardOverview />}
-        {activeTab === 'products' && <ProductManager />}
-        {activeTab === 'orders' && <OrderManager />}
-        {activeTab === 'inventory' && <InventoryManager />}
-        {activeTab === 'settings' && <SettingsManager />}
+        {activeTab === 'products' && <ProductManager isServerAuthed={isServerAuthed} />}
+        {activeTab === 'orders' && <OrderManager isServerAuthed={isServerAuthed} />}
+        {activeTab === 'inventory' && <InventoryManager isServerAuthed={isServerAuthed} />}
+        {activeTab === 'settings' && <SettingsManager isServerAuthed={isServerAuthed} />}
       </main>
     </div>
   );
@@ -165,7 +166,7 @@ function SidebarItem({ icon, label, active, onClick }: { icon: React.ReactNode, 
   );
 }
 
-function AdminLogin() {
+function AdminLogin({ onServerSuccess, onClose }: { onServerSuccess: () => void, onClose: () => void }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -175,20 +176,29 @@ function AdminLogin() {
     e.preventDefault();
     setError('');
     setLoading(true);
+
     try {
+      // First attempt: Server-side Auth (More robust, bypasses domain checks)
+      const resp = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+
+      if (resp.ok) {
+        sessionStorage.setItem('admin_server_authed', 'true');
+        onServerSuccess();
+        return;
+      }
+
+      // Second attempt: Standard Firebase Auth (only if server auth doesn't exist or fails)
       await signInWithEmailAndPassword(auth, email, password);
     } catch (err: any) {
       console.error('Login error:', err);
-      const currentDomain = typeof window !== 'undefined' ? window.location.hostname : '';
-      
-      if (err.code === 'auth/operation-not-allowed') {
-        setError('O login por E-mail/Senha não está habilitado no Console do Firebase. Vá em Authentication > Sign-in method e ative "E-mail/Senha".');
-      } else if (err.code === 'auth/network-request-failed' || err.code === 'auth/unauthorized-domain') {
-        setError(`ACESSO BLOQUEADO PELO FIREBASE: Você precisa adicionar o domínio "${currentDomain}" na lista de "Domínios Autorizados" no Console do Firebase (Authentication > Settings > Authorized Domains).`);
-      } else if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-        setError('E-mail ou senha incorretos.');
+      if (err.code === 'auth/network-request-failed' || err.code === 'auth/unauthorized-domain') {
+        setError(`DOMÍNIO NÃO AUTORIZADO: Para usar o login padrão, adicione este domínio no Console do Firebase. No entanto, o sistema tentou o acesso alternativo e as credenciais parecem incorretas.`);
       } else {
-        setError('Erro ao fazer login: ' + err.message);
+        setError('E-mail ou senha incorretos.');
       }
     } finally {
       setLoading(false);
@@ -197,12 +207,12 @@ function AdminLogin() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 relative">
-      <Link to="/" className="absolute top-8 left-8 flex items-center gap-2 group">
+      <button onClick={onClose} className="absolute top-8 left-8 flex items-center gap-2 group">
         <div className="p-2 bg-white rounded-xl shadow-sm group-hover:shadow-md transition-all">
           <ArrowLeft size={20} className="text-brand-black" />
         </div>
         <span className="font-black text-brand-black uppercase tracking-tighter text-xs">Voltar ao Site</span>
-      </Link>
+      </button>
       <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-2xl shadow-xl">
         <div className="text-center">
           <h2 className="text-3xl font-black text-brand-black tracking-tighter uppercase italic">
@@ -251,7 +261,7 @@ function AdminLogin() {
   );
 }
 
-function ProductManager() {
+function ProductManager({ isServerAuthed }: { isServerAuthed?: boolean }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [currentProduct, setCurrentProduct] = useState<Partial<Product> | null>(null);
@@ -286,10 +296,25 @@ function ProductManager() {
     };
 
     try {
-      if (currentProduct?.id) {
-        await updateDoc(doc(db, 'products', currentProduct.id), data);
+      if (isServerAuthed) {
+        const url = currentProduct?.id 
+          ? `/api/admin/db/products/${currentProduct.id}` 
+          : `/api/admin/db/products`;
+        const method = currentProduct?.id ? 'PATCH' : 'POST';
+        
+        const resp = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        
+        if (!resp.ok) throw new Error('Falha ao salvar no servidor');
       } else {
-        await addDoc(collection(db, 'products'), data);
+        if (currentProduct?.id) {
+          await updateDoc(doc(db, 'products', currentProduct.id), data as any);
+        } else {
+          await addDoc(collection(db, 'products'), data as any);
+        }
       }
       setIsEditing(false);
     } catch (err) {
@@ -324,7 +349,12 @@ function ProductManager() {
   const handleDelete = async (id: string) => {
     if (confirm('Deseja excluir este produto?')) {
       try {
-        await deleteDoc(doc(db, 'products', id));
+        if (isServerAuthed) {
+          const resp = await fetch(`/api/admin/db/products/${id}`, { method: 'DELETE' });
+          if (!resp.ok) throw new Error('Falha ao excluir no servidor');
+        } else {
+          await deleteDoc(doc(db, 'products', id));
+        }
       } catch (err) {
         handleFirestoreError(err, OperationType.DELETE, `products/${id}`);
       }
@@ -532,7 +562,7 @@ function ProductManager() {
   );
 }
 
-function InventoryManager() {
+function InventoryManager({ isServerAuthed }: { isServerAuthed?: boolean }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -558,13 +588,24 @@ function InventoryManager() {
       .filter(([_, v]) => (v || 0) > 0)
       .map(([s]) => s);
 
+    const data = {
+      inventory: newInventory,
+      stock: totalStock,
+      sizes: availableSizes,
+      updatedAt: serverTimestamp()
+    };
+
     try {
-      await updateDoc(doc(db, 'products', productId), {
-        inventory: newInventory,
-        stock: totalStock,
-        sizes: availableSizes,
-        updatedAt: serverTimestamp()
-      });
+      if (isServerAuthed && productId) {
+        const resp = await fetch(`/api/admin/db/products/${productId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        if (!resp.ok) throw new Error('Falha no servidor');
+      } else {
+        await updateDoc(doc(db, 'products', productId), data as any);
+      }
     } catch (err) {
       console.error(err);
     }
@@ -656,7 +697,7 @@ function InventoryManager() {
   );
 }
 
-function SettingsManager() {
+function SettingsManager({ isServerAuthed }: { isServerAuthed?: boolean }) {
   const [settings, setSettings] = useState<Settings>({
     whatsappNumber: '5584986320918',
     storeName: 'Flay Store',
@@ -681,7 +722,17 @@ function SettingsManager() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await setDoc(doc(db, 'settings', 'global'), settings);
+      if (isServerAuthed) {
+        // Use PATCH for existing doc in settings
+        const resp = await fetch(`/api/admin/db/settings/global`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(settings)
+        });
+        if (!resp.ok) throw new Error('Falha no servidor');
+      } else {
+        await setDoc(doc(db, 'settings', 'global'), settings);
+      }
       alert('Configurações salvas!');
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, 'settings/global');
@@ -749,7 +800,7 @@ function SettingsManager() {
   );
 }
 
-function OrderManager() {
+function OrderManager({ isServerAuthed }: { isServerAuthed?: boolean }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
@@ -765,7 +816,16 @@ function OrderManager() {
 
   const updateOrderStatus = async (orderId: string, status: Order['status']) => {
     try {
-      await updateDoc(doc(db, 'orders', orderId), { status });
+      if (isServerAuthed && orderId) {
+        const resp = await fetch(`/api/admin/db/orders/${orderId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status })
+        });
+        if (!resp.ok) throw new Error('Falha no servidor');
+      } else {
+        await updateDoc(doc(db, 'orders', orderId), { status });
+      }
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `orders/${orderId}`);
     }
@@ -957,10 +1017,10 @@ function StatCard({ label, value, sublabel, icon }: { label: string, value: stri
       </div>
       <div>
         <p className="text-3xl font-black text-brand-black tracking-tighter leading-none">{value}</p>
-        {sublabel && <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mt-3 flex items-center gap-1.5">
+        {sublabel && <div className="text-[10px] text-gray-400 font-black uppercase tracking-widest mt-3 flex items-center gap-1.5">
           <div className="w-1.5 h-1.5 rounded-full bg-brand-gold animate-pulse" />
           {sublabel}
-        </p>}
+        </div>}
       </div>
     </div>
   );
