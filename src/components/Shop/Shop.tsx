@@ -659,7 +659,10 @@ function CheckoutModal({ isOpen, onClose, cart, settings }: { isOpen: boolean, o
     const price = item.salePrice || item.price;
     return acc + (price * item.quantity);
   }, 0);
-  const total = subtotal + (shippingCost || 0);
+  
+  const isFreeShipping = settings?.freeShippingThreshold !== undefined && subtotal >= settings.freeShippingThreshold;
+  const deliveryCost = isFreeShipping ? 0 : shippingCost;
+  const total = subtotal + (deliveryCost || 0);
 
   const handleCepChange = async (cep: string) => {
     const cleanCep = cep.replace(/\D/g, '');
@@ -797,38 +800,46 @@ function CheckoutModal({ isOpen, onClose, cart, settings }: { isOpen: boolean, o
                   value={formData.phone}
                   onChange={e => setFormData({ ...formData, phone: e.target.value })}
                 />
-                <input 
-                  placeholder="CEP" 
-                  className="w-full px-4 py-3 bg-gray-50 rounded-xl focus:ring-2 focus:ring-brand-gold border-none font-medium"
-                  value={formData.cep}
-                  onChange={e => handleCepChange(e.target.value)}
-                  maxLength={8}
-                />
-                <div className="relative">
+                <div className="grid grid-cols-1 gap-3">
+                  <div className="relative">
+                    <input 
+                      placeholder="CEP (8 dígitos)" 
+                      className="w-full px-4 py-3 bg-gray-50 rounded-xl focus:ring-2 focus:ring-brand-gold border-2 border-transparent focus:border-black font-black text-black"
+                      value={formData.cep}
+                      onChange={e => handleCepChange(e.target.value)}
+                      maxLength={8}
+                    />
+                    {loadingCep && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <div className="w-5 h-5 border-2 border-brand-gold border-t-transparent rounded-full animate-spin" />
+                      </div>
+                    )}
+                  </div>
                   <input 
                     placeholder="Logradouro (Rua)" 
                     disabled={loadingCep}
-                    className="w-full px-4 py-3 bg-gray-50 rounded-xl focus:ring-2 focus:ring-brand-gold border-none font-medium disabled:opacity-50"
+                    className="w-full px-4 py-3 bg-gray-50 rounded-xl focus:ring-2 focus:ring-brand-gold border-2 border-transparent focus:border-black font-black text-black disabled:opacity-50"
                     value={formData.street}
                     onChange={e => setFormData({ ...formData, street: e.target.value })}
                   />
-                  {loadingCep && <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-brand-gold border-t-transparent rounded-full animate-spin"></div>}
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <input 
+                    placeholder="Número" 
+                    className="col-span-1 px-4 py-3 bg-gray-50 rounded-xl focus:ring-2 focus:ring-brand-gold border-2 border-transparent focus:border-black font-black text-black"
+                    value={formData.number}
+                    onChange={e => setFormData({ ...formData, number: e.target.value })}
+                  />
+                  <input 
+                    placeholder="Complemento (Opcional)" 
+                    className="col-span-2 px-4 py-3 bg-gray-50 rounded-xl focus:ring-2 focus:ring-brand-gold border-2 border-transparent focus:border-black font-black text-black"
+                    value={formData.complement}
+                    onChange={e => setFormData({ ...formData, complement: e.target.value })}
+                  />
                 </div>
                 <input 
-                  placeholder="Número" 
-                  className="w-full px-4 py-3 bg-gray-50 rounded-xl focus:ring-2 focus:ring-brand-gold border-none font-medium"
-                  value={formData.number}
-                  onChange={e => setFormData({ ...formData, number: e.target.value })}
-                />
-                <input 
-                  placeholder="Complemento" 
-                  className="w-full px-4 py-3 bg-gray-50 rounded-xl focus:ring-2 focus:ring-brand-gold border-none font-medium"
-                  value={formData.complement}
-                  onChange={e => setFormData({ ...formData, complement: e.target.value })}
-                />
-                <input 
                   placeholder="Bairro" 
-                  className="w-full px-4 py-3 bg-gray-50 rounded-xl focus:ring-2 focus:ring-brand-gold border-none font-medium disabled:opacity-50"
+                  className="w-full px-4 py-3 bg-gray-50 rounded-xl focus:ring-2 focus:ring-brand-gold border-2 border-transparent focus:border-black font-black text-black disabled:opacity-50"
                   value={formData.neighborhood}
                   disabled={loadingCep}
                   onChange={e => setFormData({ ...formData, neighborhood: e.target.value })}
@@ -836,67 +847,117 @@ function CheckoutModal({ isOpen, onClose, cart, settings }: { isOpen: boolean, o
                 <div className="grid grid-cols-3 gap-2">
                   <input 
                     placeholder="Cidade" 
-                    className="col-span-2 px-4 py-3 bg-gray-50 rounded-xl focus:ring-2 focus:ring-brand-gold border-none font-medium disabled:opacity-50"
+                    className="col-span-2 px-4 py-3 bg-gray-50 rounded-xl focus:ring-2 focus:ring-brand-gold border-2 border-transparent focus:border-black font-black text-black disabled:opacity-50"
                     value={formData.city}
                     disabled={loadingCep}
                     onChange={e => setFormData({ ...formData, city: e.target.value })}
                   />
                    <input 
                     placeholder="UF" 
-                    className="col-span-1 px-4 py-3 bg-gray-50 rounded-xl focus:ring-2 focus:ring-brand-gold border-none font-medium text-center disabled:opacity-50"
+                    className="col-span-1 px-4 py-3 bg-gray-50 rounded-xl focus:ring-2 focus:ring-brand-gold border-2 border-transparent focus:border-black font-black text-black text-center disabled:opacity-50"
                     value={formData.state}
                     disabled={loadingCep}
                     maxLength={2}
-                    onChange={e => setFormData({ ...formData, state: e.target.value })}
+                    onChange={e => setFormData({ ...formData, state: e.target.value.toUpperCase() })}
                   />
                 </div>
               </div>
+
+              {shippingCost !== null && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="p-4 bg-black rounded-2xl border-2 border-brand-gold flex justify-between items-center shadow-2xl"
+                >
+                  <div className="flex items-center gap-2">
+                    <Truck className="text-brand-gold" size={24} />
+                    <div>
+                      <p className="text-[10px] font-black text-brand-gold uppercase tracking-[0.2em] leading-none mb-1">Logística Flay Atacado</p>
+                      <p className="text-[11px] font-bold text-white uppercase italic">Envio Seguro e Garantido</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Custo Entrega</p>
+                    <span className="font-black text-white text-xl tracking-tighter">
+                        {deliveryCost === 0 ? 'GRÁTIS' : `R$ ${deliveryCost?.toFixed(2)}`}
+                    </span>
+                  </div>
+                </motion.div>
+              )}
+
+              <div className="flex justify-between items-end pt-6 border-t-2 border-black">
+                <div>
+                  <p className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-1">Total do Pedido</p>
+                  <p className="text-4xl font-black text-black tracking-tighter italic">R$ {total.toFixed(2)}</p>
+                </div>
+                <div className="text-right">
+                   <p className="text-[9px] font-bold text-black uppercase opacity-60">Subtotal: R$ {subtotal.toFixed(2)}</p>
+                   {deliveryCost !== null && deliveryCost > 0 && <p className="text-[10px] font-black text-green-600 uppercase tracking-tight">Frete: R$ {deliveryCost.toFixed(2)}</p>}
+                   {deliveryCost === 0 && <p className="text-[10px] font-black text-green-600 uppercase tracking-widest">FRETE GRÁTIS 🔥</p>}
+                </div>
+              </div>
+
               <button 
                 onClick={() => setStep(2)}
-                disabled={!formData.name || !formData.phone || !formData.cep || !formData.number}
-                className="w-full bg-brand-black text-white py-4 rounded-2xl font-bold hover:bg-black transition shadow-lg shadow-brand-gold/10 border border-brand-gold/30 disabled:opacity-50 disabled:grayscale"
+                disabled={!formData.name || !formData.phone || !formData.cep || !formData.street || !formData.number || !formData.city}
+                className="w-full bg-black text-white py-5 rounded-3xl font-black uppercase tracking-widest hover:bg-zinc-900 transition-all shadow-2xl disabled:opacity-20 flex items-center justify-center gap-3 border-2 border-brand-gold group"
               >
                 PRÓXIMO PASSO
+                <ChevronRight size={26} className="text-brand-gold group-hover:translate-x-2 transition-transform" />
               </button>
             </div>
           ) : (
             <div className="space-y-6">
-              <h3 className="text-2xl font-black text-gray-900 tracking-tight">RESUMO DO PEDIDO</h3>
-              <div className="bg-gray-50 rounded-2xl p-6 space-y-4">
-                <div className="flex justify-between font-medium text-gray-600">
-                  <span>Subtotal</span>
-                  <span>R$ {subtotal.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between font-medium text-gray-600">
-                  <span>Frete {formData.state && `(${formData.state})`}</span>
-                  <span>{shippingCost ? `R$ ${shippingCost.toFixed(2)}` : 'Calculando...'}</span>
-                </div>
-                <div className="border-t border-gray-200 pt-4 flex justify-between text-xl font-black text-gray-900">
-                  <span>TOTAL</span>
-                  <span className="text-brand-gold">R$ {total.toFixed(2)}</span>
+              <h3 className="text-2xl font-black text-black tracking-tighter text-center uppercase italic underline decoration-brand-gold decoration-4 underline-offset-8">Resumo do seu Pedido</h3>
+              <div className="bg-white rounded-3xl p-8 space-y-6 border-2 border-black shadow-2xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-brand-gold opacity-5 rotate-45 translate-x-16 -translate-y-16" />
+                
+                <div className="space-y-4">
+                  <div className="flex justify-between font-bold text-black uppercase text-[10px] tracking-widest opacity-60">
+                    <span>Produtos</span>
+                    <span>R$ {subtotal.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between font-bold text-black uppercase text-[10px] tracking-widest opacity-60">
+                    <span>Entrega {formData.state && `(${formData.state})`}</span>
+                    <span className="text-green-600">
+                      {deliveryCost === 0 ? 'GRÁTIS' : (deliveryCost ? `R$ ${deliveryCost.toFixed(2)}` : 'Calculando...')}
+                    </span>
+                  </div>
+                  <div className="border-t-2 border-dashed border-gray-200 pt-6 flex justify-between items-end">
+                    <div>
+                        <p className="text-[10px] font-black text-brand-gold uppercase tracking-[0.2em] mb-1">Total Final</p>
+                        <p className="text-4xl font-black text-black tracking-tighter italic">R$ {total.toFixed(2)}</p>
+                    </div>
+                    <div className="bg-black px-4 py-2 rounded-xl border border-brand-gold/30">
+                        <p className="text-[8px] font-black text-brand-gold uppercase tracking-widest">Status</p>
+                        <p className="text-[10px] font-black text-white uppercase animate-pulse">Pronto</p>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 flex gap-4 items-start">
-                <Phone className="text-blue-600 flex-shrink-0" size={24} />
-                <p className="text-blue-900 text-sm leading-relaxed">
-                  Ao finalizar, você será redirecionado para o WhatsApp da <strong>{settings?.storeName}</strong> para confirmar seu pedido e combinar o pagamento.
+              <div className="bg-gray-900 border-2 border-brand-gold text-white rounded-3xl p-6 flex gap-4 items-center shadow-lg">
+                <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center shrink-0 shadow-lg shadow-green-500/20">
+                    <Phone className="text-white" size={24} />
+                </div>
+                <p className="text-white text-[11px] font-bold leading-relaxed uppercase tracking-tight">
+                  Ao finalizar, enviaremos seu pedido para o WhatsApp da <strong className="text-brand-gold">{settings?.storeName}</strong> para confirmação e pagamento.
                 </p>
               </div>
 
               <div className="flex gap-4">
                 <button 
                   onClick={() => setStep(1)}
-                  className="flex-1 py-4 px-6 border-2 border-gray-200 rounded-2xl font-bold hover:bg-gray-50 transition"
+                  className="flex-1 py-5 px-6 border-2 border-black rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-gray-50 transition"
                 >
                   VOLTAR
                 </button>
                 <button 
                   onClick={finalizeOrder}
-                  className="flex-[2] bg-brand-black text-white py-4 px-6 rounded-2xl font-black hover:bg-black transition shadow-lg shadow-brand-gold/10 flex items-center justify-center gap-2 border border-brand-gold/50"
+                  className="flex-[2] bg-brand-black text-brand-gold py-5 px-6 rounded-2xl font-black hover:bg-black transition shadow-2xl flex items-center justify-center gap-3 border-2 border-brand-gold group"
                 >
-                  <Phone size={20} className="text-brand-gold" />
-                  FINALIZAR WHATSAPP
+                  <Phone size={22} className="group-hover:scale-110 transition-transform" />
+                  FINALIZAR AGORA
                 </button>
               </div>
             </div>
