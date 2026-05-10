@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   ShoppingBag, Search, Instagram, Facebook, Menu, X, Trash2,
   MapPin, Phone, Truck, CreditCard, ChevronRight, Minus, Plus,
-  Crown, Lock
+  Crown, Lock, Play
 } from 'lucide-react';
 import { 
   collection, query, where, getDocs, doc, getDoc, 
@@ -26,6 +26,8 @@ export default function Shop({ onOpenAdmin }: { onOpenAdmin?: () => void }) {
   const [activeCategory, setActiveCategory] = useState('Todos');
   const [showSplash, setShowSplash] = useState(true);
   const [showAIPopup, setShowAIPopup] = useState(false);
+  const [selectedProductForDetails, setSelectedProductForDetails] = useState<Product | null>(null);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const logoUrl = "https://i.postimg.cc/tgs9h1qV/Screenshot-20260504-103559-2.jpg";
 
   useEffect(() => {
@@ -310,8 +312,12 @@ export default function Shop({ onOpenAdmin }: { onOpenAdmin?: () => void }) {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-8 gap-y-12">
           {filteredProducts.map(product => (
-            // @ts-ignore
-            <ProductCard key={product.id} product={product} onAddToCart={addToCart} />
+            <ProductCard 
+              key={product.id} 
+              product={product} 
+              onAddToCart={addToCart} 
+              onViewDetails={(p) => { setSelectedProductForDetails(p); setIsDetailsModalOpen(true); }}
+            />
           ))}
         </div>
       </main>
@@ -482,6 +488,13 @@ export default function Shop({ onOpenAdmin }: { onOpenAdmin?: () => void }) {
         settings={settings}
       />
 
+      <ProductDetailsModal 
+        isOpen={isDetailsModalOpen}
+        onClose={() => setIsDetailsModalOpen(false)}
+        product={selectedProductForDetails}
+        onAddToCart={addToCart}
+      />
+
       {/* AI Assistant Popup */}
       <AnimatePresence>
         {showAIPopup && (
@@ -548,15 +561,19 @@ export default function Shop({ onOpenAdmin }: { onOpenAdmin?: () => void }) {
 interface ProductCardProps {
   product: Product;
   onAddToCart: (product: Product, size?: string) => void;
+  onViewDetails: (product: Product) => void;
 }
 
-function ProductCard({ product, onAddToCart }: ProductCardProps) {
+function ProductCard({ product, onAddToCart, onViewDetails }: ProductCardProps) {
   const availableSizes = product.sizes.filter(size => (product.inventory?.[size] ?? 0) > 0);
   const [selectedSize, setSelectedSize] = useState<string | undefined>(availableSizes[0]);
 
   return (
     <div className="group relative">
-      <div className="relative aspect-square bg-gray-100 rounded-[2.5rem] overflow-hidden mb-5 border border-gray-100 shadow-sm transition-all duration-500 hover:shadow-2xl hover:shadow-brand-gold/10">
+      <div 
+        className="relative aspect-square bg-gray-100 rounded-[2.5rem] overflow-hidden mb-5 border border-gray-100 shadow-sm transition-all duration-500 hover:shadow-2xl hover:shadow-brand-gold/10 cursor-pointer"
+        onClick={() => onViewDetails(product)}
+      >
         {/* Aggressive Sales Badges */}
         <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
           {product.featured && (
@@ -599,7 +616,7 @@ function ProductCard({ product, onAddToCart }: ProductCardProps) {
 
       <div className="space-y-2 px-2">
         <div className="flex justify-between items-start">
-          <div>
+          <div className="cursor-pointer" onClick={() => onViewDetails(product)}>
             <p className="text-[10px] font-black text-brand-gold uppercase tracking-[0.2em] mb-1">{product.brand || 'Original'}</p>
             <h3 className="font-bold text-brand-black group-hover:text-brand-gold transition-colors line-clamp-2 leading-tight h-10 text-sm">{product.name}</h3>
           </div>
@@ -1002,6 +1019,203 @@ function CheckoutModal({ isOpen, onClose, cart, settings }: { isOpen: boolean, o
               </div>
             </div>
           )}
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+function ProductDetailsModal({ 
+  isOpen, 
+  onClose, 
+  product, 
+  onAddToCart 
+}: { 
+  isOpen: boolean, 
+  onClose: () => void, 
+  product: Product | null, 
+  onAddToCart: (p: Product, s?: string) => void 
+}) {
+  const [activeMedia, setActiveMedia] = useState<{ type: 'image' | 'video', url: string } | null>(null);
+  const [selectedSize, setSelectedSize] = useState<string | undefined>();
+
+  useEffect(() => {
+    if (product) {
+      setActiveMedia({ type: 'image', url: product.imageUrl });
+      const availableSizes = product.sizes.filter(size => (product.inventory?.[size] ?? 0) > 0);
+      setSelectedSize(availableSizes[0]);
+    } else {
+      setActiveMedia(null);
+    }
+  }, [product]);
+
+  if (!isOpen || !product) return null;
+
+  const availableSizes = product.sizes.filter(size => (product.inventory?.[size] ?? 0) > 0);
+  const mediaItems = [
+    { type: 'image' as const, url: product.imageUrl },
+    ...(product.gallery || []).map(url => ({ type: 'image' as const, url })),
+    ...(product.videoUrls || []).map(url => ({ type: 'video' as const, url }))
+  ];
+
+  const renderVideo = (url: string) => {
+    const ytMatch = url.match(/(?:https?:\/\/)?(?:www\.)?(?:youtube\.com|youtu\.be)\/(?:watch\?v=)?(.+)/);
+    if (ytMatch) {
+      const videoId = ytMatch[1].split('&')[0].split('?')[0];
+      return (
+        <iframe 
+          className="w-full h-full"
+          src={`https://www.youtube.com/embed/${videoId}`}
+          title="Product Video"
+          frameBorder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+        ></iframe>
+      );
+    }
+    return (
+      <video src={url} controls className="w-full h-full object-contain" />
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/80 z-[70] backdrop-blur-md flex items-center justify-center p-4">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="bg-white rounded-[3rem] w-full max-w-5xl overflow-hidden shadow-2xl relative flex flex-col md:flex-row max-h-[95vh] md:max-h-[90vh]"
+      >
+        <button 
+          onClick={onClose}
+          className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-white/20 backdrop-blur-xl text-white md:text-black rounded-full transition z-50 border border-white/20"
+        >
+          <X size={24} />
+        </button>
+
+        <div className="w-full md:w-3/5 bg-brand-black relative flex flex-col h-[45vh] md:h-auto">
+          <div className="flex-1 bg-brand-black flex items-center justify-center overflow-hidden">
+            <AnimatePresence mode="wait">
+              <motion.div 
+                key={activeMedia?.url}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="w-full h-full flex items-center justify-center"
+              >
+                {activeMedia?.type === 'image' ? (
+                  <img 
+                    src={activeMedia.url} 
+                    alt={product.name} 
+                    className="w-full h-full object-contain md:object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  activeMedia && renderVideo(activeMedia.url)
+                )}
+              </motion.div>
+            </AnimatePresence>
+          </div>
+
+          {mediaItems.length > 1 && (
+            <div className="p-4 bg-white/5 backdrop-blur-xl flex gap-3 overflow-x-auto border-t border-white/10 no-scrollbar">
+              {mediaItems.map((item, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setActiveMedia(item)}
+                  className={cn(
+                    "w-16 h-16 md:w-20 md:h-20 rounded-2xl overflow-hidden shrink-0 border-4 transition-all relative group",
+                    activeMedia?.url === item.url ? "border-brand-gold scale-105 shadow-lg" : "border-transparent opacity-60 hover:opacity-100"
+                  )}
+                >
+                  {item.type === 'image' ? (
+                    <img src={item.url} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full bg-brand-black flex items-center justify-center">
+                      <Play className="text-brand-gold fill-brand-gold" size={24} />
+                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center font-black text-[10px] text-white uppercase tracking-widest opacity-100">Vídeo</div>
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex-1 p-8 md:p-12 overflow-y-auto bg-white">
+          <div className="space-y-6">
+            <div>
+              <p className="text-xs font-black text-brand-gold uppercase tracking-[0.3em] mb-2">{product.brand || 'Original'}</p>
+              <h2 className="text-2xl md:text-3xl font-black text-gray-900 leading-tight tracking-tighter mb-4 italic uppercase">
+                {product.name}
+              </h2>
+              <div className="flex items-center gap-4">
+                {product.salePrice ? (
+                  <>
+                    <p className="text-3xl md:text-4xl font-black text-brand-black tracking-tighter">R$ {product.salePrice.toFixed(2)}</p>
+                    <p className="text-md md:text-lg text-gray-400 line-through font-bold">R$ {product.price.toFixed(2)}</p>
+                    <span className="bg-red-100 text-red-600 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">Oferta</span>
+                  </>
+                ) : (
+                  <p className="text-3xl md:text-4xl font-black text-brand-black tracking-tighter">R$ {product.price.toFixed(2)}</p>
+                )}
+              </div>
+            </div>
+
+            <div className="h-px bg-gray-100 w-full" />
+
+            <div>
+              <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Escolha o seu Tamanho:</h4>
+              <div className="flex flex-wrap gap-2">
+                {availableSizes.map(size => (
+                  <button
+                    key={size}
+                    onClick={() => setSelectedSize(size)}
+                    className={cn(
+                      "w-10 h-10 md:w-12 md:h-12 rounded-2xl flex items-center justify-center font-black transition-all border-2 text-sm",
+                      selectedSize === size 
+                        ? "bg-brand-black text-brand-gold border-brand-black shadow-xl" 
+                        : "bg-white text-gray-400 border-gray-100 hover:border-brand-gold/30"
+                    )}
+                  >
+                    {size}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Descrição do Produto:</h4>
+              <p className="text-sm text-gray-600 leading-relaxed font-medium">
+                {product.description || "Sem descrição disponível."}
+              </p>
+            </div>
+
+            <div className="pt-6 space-y-4">
+              <button 
+                onClick={() => { onAddToCart(product, selectedSize); onClose(); }}
+                disabled={availableSizes.length === 0}
+                className="w-full bg-brand-black text-brand-gold py-5 md:py-6 rounded-[2rem] font-black uppercase tracking-widest flex items-center justify-center gap-3 hover:bg-black transition-all shadow-2xl shadow-brand-gold/20 border-2 border-brand-gold active:scale-[0.98] disabled:opacity-50"
+              >
+                <ShoppingBag size={24} />
+                {availableSizes.length > 0 ? "Adicionar ao Carrinho" : "Produto Esgotado"}
+              </button>
+              
+              <div className="flex items-center justify-center gap-4 md:gap-6 pt-4">
+                <div className="flex flex-col items-center">
+                  <Truck className="text-brand-gold mb-1" size={18} />
+                  <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest text-center">Envio Seguro</span>
+                </div>
+                <div className="flex flex-col items-center border-x border-gray-100 px-4 md:px-6">
+                  <Crown className="text-brand-gold mb-1" size={18} />
+                  <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest text-center">Premium</span>
+                </div>
+                <div className="flex flex-col items-center">
+                  <Lock className="text-brand-gold mb-1" size={18} />
+                  <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest text-center">Garantia</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </motion.div>
     </div>

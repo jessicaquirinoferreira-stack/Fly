@@ -15,6 +15,8 @@
         "sizes": { "type": "array", "description": "Available sizes for the product" },
         "featured": { "type": "boolean", "description": "Whether the product is featured on the home page" },
         "active": { "type": "boolean", "description": "Whether the product is visible to customers" },
+        "gallery": { "type": "array", "items": { "type": "string" }, "description": "Additional product images" },
+        "videoUrls": { "type": "array", "items": { "type": "string" }, "description": "Product video URLs (YouTube/Vimeo/Direct)" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["name", "price", "imageUrl", "createdAt"]

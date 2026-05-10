@@ -12,6 +12,8 @@ export interface Product {
   featured: boolean;
   active: boolean;
   stock?: number;
+  gallery?: string[];
+  videoUrls?: string[];
   createdAt: any;
 }
 

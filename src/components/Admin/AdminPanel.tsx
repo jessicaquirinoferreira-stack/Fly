@@ -377,6 +377,8 @@ function ProductManager({ isServerAuthed }: { isServerAuthed?: boolean }) {
       ...currentProduct, 
       stock: totalStock,
       sizes: availableSizes,
+      gallery: currentProduct?.gallery || [],
+      videoUrls: currentProduct?.videoUrls || [],
       updatedAt: serverTimestamp(),
       createdAt: currentProduct?.createdAt || serverTimestamp() 
     };
@@ -547,6 +549,24 @@ function ProductManager({ isServerAuthed }: { isServerAuthed?: boolean }) {
                     value={currentProduct?.imageUrl || ''}
                     onChange={e => setCurrentProduct({ ...currentProduct, imageUrl: e.target.value })}
                     required
+                  />
+                </div>
+                <div className="space-y-1 col-span-1 md:col-span-2">
+                  <label className="text-[10px] font-black text-black uppercase tracking-widest ml-1">Galeria de Fotos (Links separados por vírgula)</label>
+                  <textarea
+                    placeholder="Cole aqui os links das fotos extras separados por vírgula"
+                    className="w-full p-3 border-2 border-black rounded-xl font-bold text-black focus:ring-2 focus:ring-brand-gold outline-none h-20"
+                    value={currentProduct?.gallery?.join(', ') || ''}
+                    onChange={e => setCurrentProduct({ ...currentProduct, gallery: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+                  />
+                </div>
+                <div className="space-y-1 col-span-1 md:col-span-2">
+                  <label className="text-[10px] font-black text-black uppercase tracking-widest ml-1">Links de Vídeos (YouTube/Vimeo/Direct - separados por vírgula)</label>
+                  <textarea
+                    placeholder="Cole aqui os links dos vídeos separados por vírgula"
+                    className="w-full p-3 border-2 border-black rounded-xl font-bold text-black focus:ring-2 focus:ring-brand-gold outline-none h-20"
+                    value={currentProduct?.videoUrls?.join(', ') || ''}
+                    onChange={e => setCurrentProduct({ ...currentProduct, videoUrls: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
                   />
                 </div>
                 <div className="space-y-1">
